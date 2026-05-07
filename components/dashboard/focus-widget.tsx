@@ -85,9 +85,12 @@ export function FocusWidget({ meetings, tasks, loading, clienteSelecionado }: Pr
 
       for (const action of actionItems) {
         if (items.length >= 6) break
+        const label = typeof action === "string"
+          ? action
+          : (action?.tarefa || action?.titulo || action?.acao || JSON.stringify(action))
         items.push({
           type: "action_item",
-          label: typeof action === "string" ? action : action,
+          label,
           urgency: "normal",
           source: meeting.cliente || meeting.titulo || "Reunião",
         })

@@ -23,6 +23,7 @@ export default function ReunioesPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [isProcessingFile, setIsProcessingFile] = useState(false)
 
   // Upload Form State
   const [transcript, setTranscript] = useState("")
@@ -99,6 +100,44 @@ export default function ReunioesPage() {
     }
   }
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setIsProcessingFile(true)
+    const toastId = toast.loading("Extraindo texto do arquivo...")
+
+    try {
+      if (file.type === "text/plain") {
+        const text = await file.text()
+        setTranscript(prev => prev + (prev ? "\n\n" : "") + text)
+        toast.success("Texto do .txt extraído com sucesso!", { id: toastId })
+      } else if (file.type === "application/pdf") {
+        const formData = new FormData()
+        formData.append("file", file)
+        
+        const res = await fetch("/api/parse-pdf", {
+          method: "POST",
+          body: formData
+        })
+        
+        if (!res.ok) throw new Error("Erro ao processar o PDF no servidor.")
+        
+        const data = await res.json()
+        setTranscript(prev => prev + (prev ? "\n\n" : "") + data.text)
+        toast.success("Texto do PDF extraído com sucesso!", { id: toastId })
+      } else {
+        toast.error("Formato não suportado. Por favor, envie um .txt ou .pdf.", { id: toastId })
+      }
+    } catch (error: any) {
+      console.error(error)
+      toast.error(error.message || "Falha ao processar o arquivo.", { id: toastId })
+    } finally {
+      setIsProcessingFile(false)
+      event.target.value = "" // clear input so user can upload the same file again if needed
+    }
+  }
+
   const toggleExpand = (id: number) => {
     setExpandedId(expandedId === id ? null : id)
   }
@@ -160,13 +199,36 @@ export default function ReunioesPage() {
                 <Input id="email" type="email" placeholder="nome@agencia.com" value={email} onChange={e => setEmail(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="transcript">Transcrição Completa</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="transcript">Transcrição Completa</Label>
+                  <div className="flex items-center">
+                    <input 
+                      type="file" 
+                      id="file-upload" 
+                      className="hidden" 
+                      accept=".txt,.pdf,application/pdf,text/plain" 
+                      onChange={handleFileUpload} 
+                    />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => document.getElementById("file-upload")?.click()}
+                      disabled={isProcessingFile}
+                      className="h-7 text-xs"
+                    >
+                      <UploadCloud className="mr-2 h-3 w-3" />
+                      {isProcessingFile ? "Extraindo..." : "Carregar Arquivo (.txt, .pdf)"}
+                    </Button>
+                  </div>
+                </div>
                 <Textarea 
                   id="transcript" 
                   className="min-h-[200px]" 
-                  placeholder="Cole o texto da transcrição aqui..." 
+                  placeholder="Cole o texto da transcrição aqui, ou carregue um arquivo usando o botão acima..." 
                   value={transcript}
                   onChange={e => setTranscript(e.target.value)}
+                  disabled={isProcessingFile}
                 />
               </div>
             </div>
@@ -257,12 +319,24 @@ export default function ReunioesPage() {
                           <div>
                             <h4 className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Temas Discutidos</h4>
                             <ul className="space-y-2">
-                              {temas.map((tema: string, i: number) => (
-                                <li key={i} className="flex items-start text-sm">
-                                  <span className="mr-2 mt-1.5 h-1.5 w-1.5 rounded-full bg-primary/50 flex-shrink-0" />
-                                  <span>{tema}</span>
-                                </li>
-                              ))}
+                              {temas.map((temaItem: any, i: number) => {
+                                const rawTema = temaItem.tema
+                                const text = typeof temaItem === 'string' ? temaItem : (typeof rawTema === 'string' ? rawTema : JSON.stringify(rawTema ?? temaItem));
+                                const subtext = typeof temaItem === 'object' && temaItem.pontos ? temaItem.pontos : null;
+                                return (
+                                  <li key={i} className="flex flex-col mb-2">
+                                    <div className="flex items-start text-sm">
+                                      <span className="mr-2 mt-1.5 h-1.5 w-1.5 rounded-full bg-primary/50 flex-shrink-0" />
+                                      <span className="font-medium">{text}</span>
+                                    </div>
+                                    {subtext && (
+                                      <span className="text-muted-foreground text-xs ml-3.5 mt-1 pl-1 border-l-2 border-muted">
+                                        {Array.isArray(subtext) ? subtext.join(', ') : String(subtext)}
+                                      </span>
+                                    )}
+                                  </li>
+                                )
+                              })}
                             </ul>
                           </div>
                         )}
@@ -271,12 +345,23 @@ export default function ReunioesPage() {
                           <div>
                             <h4 className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Decisões Tomadas</h4>
                             <ul className="space-y-3">
-                              {decisoes.map((decisao: string, i: number) => (
-                                <li key={i} className="flex items-start bg-secondary/30 p-3 rounded-md text-sm border border-secondary/50">
-                                  <CheckCircle2 className="mr-3 h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                                  <span className="text-foreground/90">{decisao}</span>
-                                </li>
-                              ))}
+                              {decisoes.map((decisaoItem: any, i: number) => {
+                                const descricao = typeof decisaoItem === 'string'
+                                  ? decisaoItem
+                                  : (decisaoItem.descricao || decisaoItem.decisao || decisaoItem.titulo || JSON.stringify(decisaoItem))
+                                const contexto = typeof decisaoItem === 'object' && typeof decisaoItem.contexto === 'string'
+                                  ? decisaoItem.contexto
+                                  : null
+                                return (
+                                  <li key={i} className="flex items-start bg-secondary/30 p-3 rounded-md text-sm border border-secondary/50">
+                                    <CheckCircle2 className="mr-3 h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                                    <div className="flex flex-col gap-1">
+                                      {contexto && <span className="text-xs text-muted-foreground italic">{contexto}</span>}
+                                      <span className="text-foreground/90">{descricao}</span>
+                                    </div>
+                                  </li>
+                                )
+                              })}
                             </ul>
                           </div>
                         )}
@@ -290,12 +375,23 @@ export default function ReunioesPage() {
                               <AlertTriangle className="mr-2 h-4 w-4" /> Bloqueios
                             </h4>
                             <ul className="space-y-2">
-                              {bloqueios.map((bloqueio: string, i: number) => (
-                                <li key={i} className="flex items-start text-sm">
-                                  <Badge variant="destructive" className="mr-2 mt-0.5 text-[10px] px-1 py-0 rounded">Block</Badge>
-                                  <span>{bloqueio}</span>
-                                </li>
-                              ))}
+                              {bloqueios.map((bloqueioItem: any, i: number) => {
+                                const descricao = typeof bloqueioItem === 'string'
+                                  ? bloqueioItem
+                                  : (bloqueioItem.descricao || bloqueioItem.bloqueio || bloqueioItem.titulo || JSON.stringify(bloqueioItem))
+                                const impacto = typeof bloqueioItem === 'object' && typeof bloqueioItem.impacto === 'string'
+                                  ? bloqueioItem.impacto
+                                  : null
+                                return (
+                                  <li key={i} className="flex items-start text-sm gap-2">
+                                    <Badge variant="destructive" className="mt-0.5 text-[10px] px-1 py-0 rounded flex-shrink-0">Block</Badge>
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="font-medium">{descricao}</span>
+                                      {impacto && <span className="text-xs text-muted-foreground">{impacto}</span>}
+                                    </div>
+                                  </li>
+                                )
+                              })}
                             </ul>
                           </div>
                         )}
@@ -304,9 +400,13 @@ export default function ReunioesPage() {
                           <div>
                             <h4 className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Próximos Passos (Gerais)</h4>
                             <ul className="space-y-2 text-sm text-muted-foreground">
-                              {proximosPassos.map((passo: string, i: number) => (
-                                <li key={i}>• {passo}</li>
-                              ))}
+                              {proximosPassos.map((passoItem: any, i: number) => {
+                                const rawP = passoItem.passo ?? passoItem.acao
+                                const text = typeof passoItem === 'string' ? passoItem : (typeof rawP === 'string' ? rawP : JSON.stringify(rawP ?? passoItem));
+                                return (
+                                  <li key={i}>• {text}</li>
+                                )
+                              })}
                             </ul>
                           </div>
                         )}
@@ -328,25 +428,34 @@ export default function ReunioesPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {actions.map((action: any, i: number) => (
-                                <TableRow key={i}>
-                                  <TableCell className="font-medium">{action.tarefa}</TableCell>
-                                  <TableCell>
-                                    <div className="flex items-center gap-2">
-                                      <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-[10px] font-medium uppercase">
-                                        {action.responsavel?.substring(0, 2) || "??"}
+                              {actions.map((actionItem: any, i: number) => {
+                                const action = typeof actionItem === 'object' && actionItem !== null ? (actionItem.tarefa && typeof actionItem.tarefa === 'object' ? actionItem.tarefa : actionItem) : { tarefa: actionItem };
+                                
+                                const tarefaStr = typeof action.tarefa === 'string' ? action.tarefa : (typeof action === 'string' ? action : JSON.stringify(action.tarefa || action));
+                                const respStr = typeof action.responsavel === 'string' ? action.responsavel : (action.responsavel ? JSON.stringify(action.responsavel) : "Não definido");
+                                const prazoStr = typeof action.prazo === 'string' ? action.prazo : (action.prazo ? JSON.stringify(action.prazo) : "Sem prazo");
+                                const prioStr = typeof action.prioridade === 'string' ? action.prioridade : (action.prioridade ? JSON.stringify(action.prioridade) : "Normal");
+
+                                return (
+                                  <TableRow key={i}>
+                                    <TableCell className="font-medium max-w-[200px] truncate" title={tarefaStr}>{tarefaStr}</TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-2">
+                                        <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-[10px] font-medium uppercase flex-shrink-0">
+                                          {respStr.substring(0, 2)}
+                                        </div>
+                                        <span className="text-sm truncate max-w-[100px]" title={respStr}>{respStr}</span>
                                       </div>
-                                      <span className="text-sm">{action.responsavel}</span>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-muted-foreground text-sm">{action.prazo}</TableCell>
-                                  <TableCell>
-                                    <Badge variant={getPriorityColor(action.prioridade) as any} className={getPriorityClass(action.prioridade)}>
-                                      {action.prioridade}
-                                    </Badge>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground text-sm">{prazoStr}</TableCell>
+                                    <TableCell>
+                                      <Badge variant={getPriorityColor(prioStr) as any} className={getPriorityClass(prioStr)}>
+                                        {prioStr}
+                                      </Badge>
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              })}
                             </TableBody>
                           </Table>
                         </div>

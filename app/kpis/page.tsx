@@ -29,12 +29,27 @@ const fmtFreq = (v: any) => `${(Number(v) || 0).toFixed(2)}x`
 // --- Aggregates multiple daily rows into one synthetic snapshot ---
 function aggregateRows(rows: any[]): any | null {
   if (!rows || rows.length === 0) return null
-  if (rows.length === 1) return rows[0]
+  if (rows.length === 1) {
+    const r = { ...rows[0] }
+    if (r.compras === undefined) {
+      r.compras = r.cac > 0 ? Math.round((r.investimento_total || 0) / r.cac) : 0
+    }
+    return r
+  }
   const sum = (key: string) => rows.reduce((acc, r) => acc + (Number(r[key]) || 0), 0)
   const avg = (key: string) => sum(key) / rows.length
   const investimento  = sum('investimento_total')
   const receita       = sum('receita_atribuida')
-  const compras       = sum('compras')
+  // If 'compras' is missing from rows, calculate it individually per row
+  const sumCompras = rows.reduce((acc, r) => {
+    let c = Number(r['compras'])
+    if (isNaN(c)) {
+      c = (Number(r.cac) > 0) ? Math.round((Number(r.investimento_total) || 0) / Number(r.cac)) : 0
+    }
+    return acc + c
+  }, 0)
+
+  const compras       = sumCompras
   const impressoes    = sum('impressoes')
   const cliques       = sum('cliques')
   const leads         = sum('leads_gerados')

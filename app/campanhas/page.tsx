@@ -144,11 +144,8 @@ const fmtInt = (v: number) =>
 export default function CampanhasPage() {
   const { clienteSelecionado } = useCliente()
 
-  // Date range picker state (default: last 7 days)
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 7),
-    to: new Date(),
-  })
+  // Date range picker state (will be set automatically based on latest data)
+  const [dateRange, setDateRange] = useState<DateRange | undefined>()
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [consultando, setConsultando] = useState(false)
 
@@ -222,13 +219,55 @@ export default function CampanhasPage() {
   // Initial load when client changes
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (clienteSelecionado && dateStart && dateEnd) {
-      fetchCampanhas(dateStart, dateEnd)
-    } else if (!clienteSelecionado) {
-      setCampanhas([])
-      setAds([])
-      setSelectedCampaign(null)
+    async function initClientData() {
+      if (!clienteSelecionado) {
+        setCampanhas([])
+        setAds([])
+        setSelectedCampaign(null)
+        setDateRange(undefined)
+        return
+      }
+
+      setLoadingCampanhas(true)
+
+      try {
+        const { data: latestRows, error: latestErr } = await supabase
+          .from("campaign_snapshots")
+          .select("periodo_inicio")
+          .eq("conta_nome", clienteSelecionado.conta_nome)
+          .order("periodo_inicio", { ascending: false })
+          .limit(1)
+
+        if (latestErr) throw latestErr
+
+        let startStr = ""
+        let endStr = ""
+
+        if (latestRows && latestRows.length > 0) {
+          const latestDateStr = latestRows[0].periodo_inicio
+          const toDate = new Date(`${latestDateStr}T12:00:00`)
+          const fromDate = subDays(toDate, 7)
+          
+          setDateRange({ from: fromDate, to: toDate })
+          startStr = format(fromDate, "yyyy-MM-dd")
+          endStr = format(toDate, "yyyy-MM-dd")
+        } else {
+          const toDate = new Date()
+          const fromDate = subDays(toDate, 7)
+          setDateRange({ from: fromDate, to: toDate })
+          startStr = format(fromDate, "yyyy-MM-dd")
+          endStr = format(toDate, "yyyy-MM-dd")
+        }
+
+        await fetchCampanhas(startStr, endStr)
+      } catch (err) {
+        console.error("Erro ao buscar data inicial:", err)
+        setError("Erro ao determinar o período mais recente.")
+        setLoadingCampanhas(false)
+      }
     }
+
+    initClientData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteSelecionado])
 

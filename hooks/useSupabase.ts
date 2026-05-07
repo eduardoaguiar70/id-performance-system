@@ -21,7 +21,7 @@ export function useSupabase() {
   const fetchKpiHistory = async (conta_nome?: string, limit: number = 8) => {
     let query = supabase
       .from('kpi_snapshots')
-      .select('periodo_fim, roas, taxa_conversao, investimento_total, receita_atribuida, compras')
+      .select('periodo_fim, roas, taxa_conversao, investimento_total, receita_atribuida')
       .order('periodo_inicio', { ascending: false })
       .limit(limit)
 
