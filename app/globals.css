@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    /* ID Performance Brand - Light mode (não utilizado, dark é padrão) */
+    --background: 0 0% 98%;
+    --foreground: 0 0% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 8%;
+    --primary: 100 72% 43%;          /* Verde limão ID Performance */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 94%;
+    --secondary-foreground: 0 0% 8%;
+    --muted: 0 0% 94%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 100 72% 43%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 100 72% 43%;
+    --radius: 0.25rem;
+    --chart-1: 100 72% 43%;
+    --chart-2: 100 50% 55%;
+    --chart-3: 100 35% 65%;
+    --chart-4: 100 20% 75%;
+    --chart-5: 0 0% 50%;
+  }
+
+  .dark {
+    /* ID Performance Brand - Dark mode (padrão do sistema) */
+    --background: 0 0% 5%;           /* Quase preto, fundo da marca */
+    --foreground: 0 0% 96%;
+    --card: 0 0% 9%;                 /* Card levemente mais claro que o fundo */
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 100 72% 43%;          /* Verde limão ID Performance #5DC220 */
+    --primary-foreground: 0 0% 5%;   /* Texto escuro sobre verde */
+    --secondary: 0 0% 13%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 13%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 100 65% 38%;           /* Verde um pouco mais escuro para hover */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 55%;
+    --border: 0 0% 16%;
+    --input: 0 0% 14%;
+    --ring: 100 72% 43%;
+    --chart-1: 100 72% 43%;          /* Verde primário */
+    --chart-2: 100 55% 58%;          /* Verde médio */
+    --chart-3: 100 40% 68%;          /* Verde claro */
+    --chart-4: 60 60% 55%;           /* Amarelo-verde complementar */
+    --chart-5: 0 0% 55%;             /* Cinza neutro */
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
