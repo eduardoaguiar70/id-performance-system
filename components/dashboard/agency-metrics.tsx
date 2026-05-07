@@ -7,9 +7,6 @@ import {
   BarChart2, ArrowUpRight, ArrowDownRight, Minus
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip
-} from "recharts"
 
 interface Props {
   meetings: any[]

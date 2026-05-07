@@ -37,7 +37,6 @@ function parseAlerts(analysis: any): InsightAlert[] {
     return field
   }
 
-  const observacoes = parseSafe(analysis.observacoes)
   const acoes = parseSafe(analysis.acoes_recomendadas)
   const anuncios = parseSafe(analysis.anuncios)
   const campanhas = parseSafe(analysis.campanhas)

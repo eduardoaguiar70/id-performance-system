@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useCliente } from "@/context/ClienteContext"
 import { useSupabase } from "@/hooks/useSupabase"
 import { SpotlightSearch } from "@/components/dashboard/spotlight-search"
@@ -51,6 +51,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteSelecionado])
 
   useEffect(() => {
