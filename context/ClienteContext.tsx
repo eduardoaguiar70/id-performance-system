@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, ReactNode } from "react"
+import { createContext, useContext, useState, useMemo, ReactNode } from "react"
 import { Cliente } from "@/types/cliente"
 
 interface ClienteContextType {
@@ -13,8 +13,10 @@ const ClienteContext = createContext<ClienteContextType | undefined>(undefined)
 export function ClienteProvider({ children }: { children: ReactNode }) {
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null)
 
+  const value = useMemo(() => ({ clienteSelecionado, setClienteSelecionado }), [clienteSelecionado])
+
   return (
-    <ClienteContext.Provider value={{ clienteSelecionado, setClienteSelecionado }}>
+    <ClienteContext.Provider value={value}>
       {children}
     </ClienteContext.Provider>
   )

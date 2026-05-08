@@ -14,7 +14,7 @@ import { Building2, Crosshair } from "lucide-react"
 
 export default function DashboardPage() {
   const { clienteSelecionado } = useCliente()
-  const { supabase, fetchMeetings, fetchLatestTaskSnapshot, fetchLatestKpiAnalysis, fetchKpiHistory } = useSupabase()
+  const { supabase, fetchMeetings, fetchLatestKpiAnalysis, fetchKpiHistory } = useSupabase()
 
   const [meetings, setMeetings] = useState<any[]>([])
   const [tasks, setTasks] = useState<any>(null)
@@ -28,7 +28,8 @@ export default function DashboardPage() {
     try {
       const [meetingsData, tasksData, historyData, clientesData] = await Promise.allSettled([
         fetchMeetings(),
-        fetchLatestTaskSnapshot(),
+        // Busca direto da tabela tarefas (nova arquitetura)
+        supabase.from('tarefas').select('*').order('id', { ascending: false }),
         clienteSelecionado
           ? fetchKpiHistory(clienteSelecionado.conta_nome, 7)
           : fetchKpiHistory(undefined, 7),
@@ -36,9 +37,30 @@ export default function DashboardPage() {
       ])
 
       if (meetingsData.status === "fulfilled") setMeetings(meetingsData.value || [])
-      if (tasksData.status === "fulfilled") setTasks(tasksData.value)
+
+      if (tasksData.status === "fulfilled") {
+        const lista: any[] = tasksData.value.data || []
+        if (tasksData.value.error) {
+          console.error("[Dashboard] Erro ao buscar tarefas:", tasksData.value.error)
+        }
+        const urgentes = lista.filter((t: any) =>
+          (t.prioridade ?? "").toLowerCase() === "urgente"
+        ).length
+        // Monta objeto compatível com AgencyMetrics e FocusWidget
+        setTasks({
+          tarefas: lista,
+          resumo_backlog: { total: lista.length, urgentes },
+        })
+      }
+
       if (historyData.status === "fulfilled") setKpiHistory(historyData.value || [])
-      if (clientesData.status === "fulfilled") setClientesAtivosCount(clientesData.value.count ?? 0)
+
+      if (clientesData.status === "fulfilled") {
+        if (clientesData.value.error) {
+          console.error("[Dashboard] Erro ao buscar clientes ativos:", clientesData.value.error)
+        }
+        setClientesAtivosCount(clientesData.value.count ?? 0)
+      }
 
       if (clienteSelecionado) {
         const analysis = await fetchLatestKpiAnalysis(clienteSelecionado.conta_nome)

@@ -37,6 +37,31 @@ import {
 import { LeadDetailsModal, getStatusConfig } from "./lead-details-modal"
 
 // ──────────────────────────────────────────
+// Badge de qualificação SDR
+// ──────────────────────────────────────────
+function QualificacaoBadge({ value }: { value?: string | null }) {
+  if (!value) return <span className="text-xs text-muted-foreground/40">—</span>
+  const v = value.toUpperCase().trim()
+  if (v === "ALTA")
+    return (
+      <Badge className="text-xs border bg-green-500/15 text-green-400 border-green-500/30 hover:bg-green-500/20">
+        Alta
+      </Badge>
+    )
+  if (v === "MEDIA" || v === "MÉDIA")
+    return (
+      <Badge className="text-xs border bg-yellow-500/15 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/20">
+        Média
+      </Badge>
+    )
+  return (
+    <Badge variant="secondary" className="text-xs text-muted-foreground">
+      Baixa
+    </Badge>
+  )
+}
+
+// ──────────────────────────────────────────
 // Constantes
 // ──────────────────────────────────────────
 const PAGE_SIZE = 20
@@ -470,6 +495,7 @@ export function LeadsTable() {
                 <TableHead>Seguidores</TableHead>
                 <TableHead>WhatsApp</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Qualificação</TableHead>
                 <TableHead>Scraped em</TableHead>
                 <TableHead className="text-right pr-4">Ações</TableHead>
               </TableRow>
@@ -507,7 +533,7 @@ export function LeadsTable() {
               ) : leads.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="h-32 text-center text-muted-foreground"
                   >
                     Nenhum lead encontrado com os filtros aplicados.
@@ -575,6 +601,11 @@ export function LeadsTable() {
                         >
                           {statusCfg.label}
                         </Badge>
+                      </TableCell>
+
+                      {/* Qualificação Badge */}
+                      <TableCell>
+                        <QualificacaoBadge value={lead.qualificacao} />
                       </TableCell>
 
                       {/* Scraped em */}

@@ -1,11 +1,16 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import { useState, useRef, useEffect } from "react"
 import { useCliente } from "@/context/ClienteContext"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Send, Sparkles, Zap, BarChart2, Users, CalendarDays, RefreshCw } from "lucide-react"
+import {
+  Send, Sparkles, Zap, BarChart2, Users, CalendarDays, RefreshCw,
+  Lightbulb, ListChecks, Brain, Info, CheckSquare,
+} from "lucide-react"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
@@ -14,6 +19,187 @@ interface Mensagem {
   conteudo: string
   timestamp: Date
 }
+
+// ─── XML tag parser ────────────────────────────────────────────────────────────
+
+type SegTag = "resumo" | "metricas" | "insight" | "action" | "provocacao"
+type Segment = { type: "md" | SegTag; content: string }
+
+const TAG_RE = /<(resumo|metricas|insight|action|provocacao)>([\s\S]*?)<\/\1>/g
+
+function parseSegments(text: string): Segment[] {
+  const segs: Segment[] = []
+  let last = 0
+  TAG_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = TAG_RE.exec(text)) !== null) {
+    const pre = text.slice(last, m.index).trim()
+    if (pre) segs.push({ type: "md", content: pre })
+    segs.push({ type: m[1] as SegTag, content: m[2].trim() })
+    last = TAG_RE.lastIndex
+  }
+  const tail = text.slice(last).trim()
+  if (tail) segs.push({ type: "md", content: tail })
+  return segs
+}
+
+// ─── Shared Markdown renderer ─────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const MD_COMPONENTS: Record<string, any> = {
+  table: ({ children }: any) => (
+    <div className="overflow-x-auto my-3">
+      <table className="w-full text-xs border-collapse border border-border/60">{children}</table>
+    </div>
+  ),
+  thead: ({ children }: any) => <thead className="bg-muted/40">{children}</thead>,
+  tbody: ({ children }: any) => <tbody className="divide-y divide-border/40">{children}</tbody>,
+  tr:    ({ children }: any) => <tr className="hover:bg-muted/20 transition-colors">{children}</tr>,
+  th:    ({ children }: any) => (
+    <th className="px-3 py-2 text-left font-semibold text-foreground border-b border-border/60 whitespace-nowrap">
+      {children}
+    </th>
+  ),
+  td: ({ children }: any) => (
+    <td className="px-3 py-2 text-foreground/80 border-r border-border/30 last:border-r-0">{children}</td>
+  ),
+  code: ({ children, className }: any) =>
+    className ? (
+      <code className={`block bg-muted/50 rounded px-3 py-2 text-xs font-mono overflow-x-auto my-2 ${className}`}>
+        {children}
+      </code>
+    ) : (
+      <code className="bg-muted/50 rounded px-1 py-0.5 text-xs font-mono">{children}</code>
+    ),
+  p:          ({ children }: any) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+  ul:         ({ children }: any) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
+  ol:         ({ children }: any) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
+  li:         ({ children }: any) => <li className="text-foreground/80">{children}</li>,
+  strong:     ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
+  blockquote: ({ children }: any) => (
+    <blockquote className="border-l-2 border-primary/40 pl-3 my-2 text-muted-foreground italic">
+      {children}
+    </blockquote>
+  ),
+}
+
+function MdContent({ children }: { children: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+      {children}
+    </ReactMarkdown>
+  )
+}
+
+// ─── Bloco: <resumo> ──────────────────────────────────────────────────────────
+
+function ResumoBlock({ content }: { content: string }) {
+  return (
+    <div
+      className="my-2.5 rounded-lg border-l-4 border-primary px-4 py-3"
+      style={{ background: "hsl(var(--primary)/0.07)" }}
+    >
+      <div className="flex items-center gap-1.5 mb-2">
+        <Info className="h-3.5 w-3.5 text-primary" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Resumo</span>
+      </div>
+      <div className="text-sm"><MdContent>{content}</MdContent></div>
+    </div>
+  )
+}
+
+// ─── Bloco: <metricas> ────────────────────────────────────────────────────────
+
+function MetricasBlock({ content }: { content: string }) {
+  return (
+    <div className="my-2.5 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+      <div className="flex items-center gap-1.5 mb-2">
+        <BarChart2 className="h-3.5 w-3.5 text-primary" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Métricas</span>
+      </div>
+      <div className="text-sm"><MdContent>{content}</MdContent></div>
+    </div>
+  )
+}
+
+// ─── Bloco: <insight> ─────────────────────────────────────────────────────────
+
+function InsightBlock({ content }: { content: string }) {
+  return (
+    <div
+      className="my-2.5 rounded-lg border border-yellow-500/25 px-4 py-3"
+      style={{ background: "hsl(48 96% 53% / 0.06)" }}
+    >
+      <div className="flex items-center gap-1.5 mb-2">
+        <Lightbulb className="h-3.5 w-3.5 text-yellow-400" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-yellow-400">Insight</span>
+      </div>
+      <div className="text-sm text-foreground/85"><MdContent>{content}</MdContent></div>
+    </div>
+  )
+}
+
+// ─── Bloco: <action> ─────────────────────────────────────────────────────────
+
+function ActionBlock({ content }: { content: string }) {
+  const lines = content
+    .split(/\n/)
+    .map((l) => l.replace(/^[-*\d.]\s*/, "").trim())
+    .filter(Boolean)
+
+  return (
+    <div
+      className="my-2.5 rounded-lg border border-green-500/25 px-4 py-3"
+      style={{ background: "hsl(142 76% 36% / 0.06)" }}
+    >
+      <div className="flex items-center gap-1.5 mb-2.5">
+        <ListChecks className="h-3.5 w-3.5 text-green-400" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-green-400">Ações</span>
+      </div>
+      <ul className="space-y-1.5">
+        {lines.map((line, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm text-foreground/80">
+            <CheckSquare className="h-3.5 w-3.5 text-green-400 flex-shrink-0 mt-0.5" />
+            <span>{line}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// ─── Bloco: <provocacao> ──────────────────────────────────────────────────────
+
+function ProvocacaoBlock({ content }: { content: string }) {
+  return (
+    <div className="my-2 flex items-start gap-2.5 px-1">
+      <Brain className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 mt-0.5" />
+      <p className="text-sm italic text-muted-foreground/65 leading-relaxed">{content}</p>
+    </div>
+  )
+}
+
+// ─── MessageContent: orquestra todos os blocos ────────────────────────────────
+
+function MessageContent({ content }: { content: string }) {
+  const segments = parseSegments(content)
+  return (
+    <div className="space-y-0.5">
+      {segments.map((seg, i) => {
+        switch (seg.type) {
+          case "resumo":     return <ResumoBlock     key={i} content={seg.content} />
+          case "metricas":   return <MetricasBlock   key={i} content={seg.content} />
+          case "insight":    return <InsightBlock    key={i} content={seg.content} />
+          case "action":     return <ActionBlock     key={i} content={seg.content} />
+          case "provocacao": return <ProvocacaoBlock key={i} content={seg.content} />
+          default:           return <MdContent       key={i}>{seg.content}</MdContent>
+        }
+      })}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const QUICK_PROMPTS = [
   { icon: BarChart2, label: "Resumo de KPIs", prompt: "Me dê um resumo dos principais KPIs da agência esta semana." },
@@ -214,7 +400,7 @@ export default function InsightsPage() {
                 }
               >
                 {msg.role === "assistant"
-                  ? <ReactMarkdown>{msg.conteudo}</ReactMarkdown>
+                  ? <MessageContent content={msg.conteudo} />
                   : msg.conteudo
                 }
               </div>

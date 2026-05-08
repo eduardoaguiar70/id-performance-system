@@ -19,6 +19,7 @@ export interface Lead {
   whatsapp: string
   whatsapp_source: string
   status: LeadStatus
+  qualificacao?: string | null   // gerado pelo Agente SDR (WF3): ALTA | MEDIA | BAIXA
   approached: boolean
   approached_at: string | null
   selected: boolean

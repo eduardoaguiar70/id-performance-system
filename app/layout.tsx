@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { Toaster } from "@/components/ui/sonner";
 import { ClienteProvider } from "@/context/ClienteContext";
+import { headers } from "next/headers";
 
 import NextTopLoader from 'nextjs-toploader';
 
@@ -21,6 +22,21 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = headers().get("x-pathname") ?? "";
+  const isAuthPage = pathname === "/login";
+
+  if (isAuthPage) {
+    return (
+      <html lang="pt-BR" className={cn("dark", inter.variable)}>
+        <body className="font-sans antialiased bg-background text-foreground">
+          <NextTopLoader color="#22c55e" showSpinner={false} />
+          {children}
+          <Toaster />
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="pt-BR" className={cn("dark", inter.variable)}>
       <body className="font-sans antialiased bg-background text-foreground h-screen flex overflow-hidden">

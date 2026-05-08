@@ -1,21 +1,27 @@
 "use client"
 
+import { memo, useCallback } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
   Users,
   Image as ImageIcon,
-  FileText,
   Megaphone,
   TrendingUp,
   MessageSquare,
   CheckSquare,
   ScanSearch,
   Bot,
+  LogOut,
+  Building2,
+  Heart,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useRouter } from "next/navigation"
+import { supabaseAuth } from "@/lib/supabase"
 
 // ---------------------------------------------------------------------------
 // Navigation groups
@@ -45,6 +51,13 @@ const groups: NavGroup[] = [
     ],
   },
   {
+    label: "Gestão",
+    items: [
+      { name: "Clientes",          href: "/clientes",          icon: Building2 },
+      { name: "Customer Success",  href: "/customer-success",  icon: Heart },
+    ],
+  },
+  {
     label: "Comercial",
     items: [
       { name: "Leads",   href: "/leads",   icon: Users },
@@ -69,29 +82,35 @@ const groups: NavGroup[] = [
     label: "Utilidades",
     items: [
       { name: "Criativos", href: "/criativos", icon: ImageIcon },
-      { name: "Briefing",  href: "/briefing",  icon: FileText },
     ],
   },
 ]
 
 // ---------------------------------------------------------------------------
-export function Sidebar() {
+function SidebarComponent() {
   const pathname = usePathname()
+  const router = useRouter()
+
+  const handleLogout = useCallback(async () => {
+    await supabaseAuth.auth.signOut()
+    document.cookie = "sb-auth-token=; path=/; max-age=0"
+    router.push("/login")
+    router.refresh()
+  }, [router])
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-card text-card-foreground">
 
       {/* ── Logo ──────────────────────────────────────────────────────── */}
       <div className="flex h-16 items-center px-6 border-b border-border flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-sm bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-black text-sm leading-none">ID</span>
-          </div>
-          <div>
-            <div className="font-black text-sm leading-none text-foreground">ID Performance</div>
-            <div className="text-[10px] text-primary font-semibold leading-none mt-0.5">Digital</div>
-          </div>
-        </div>
+        <Image
+          src="/id-logo-horizontal.png"
+          alt="ID Performance Digital"
+          width={320}
+          height={80}
+          priority
+          className="h-11 w-auto object-contain"
+        />
       </div>
 
       {/* ── Nav groups ────────────────────────────────────────────────── */}
@@ -142,15 +161,24 @@ export function Sidebar() {
       {/* ── User footer ───────────────────────────────────────────────── */}
       <div className="border-t border-border p-4 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-sm font-medium">
-            M
+          <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-sm font-medium flex-shrink-0">
+            ID
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">Mateus</span>
+          <div className="flex flex-col flex-1 min-w-0">
+            <span className="text-sm font-medium truncate">ID Performance</span>
             <span className="text-xs text-muted-foreground">Admin</span>
           </div>
+          <button
+            onClick={handleLogout}
+            title="Sair"
+            className="text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>
   )
 }
+
+export const Sidebar = memo(SidebarComponent)

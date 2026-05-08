@@ -1,379 +1,561 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, prefer-const, @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import { useState, useEffect } from "react"
-import { useSupabase } from "@/hooks/useSupabase"
+import { useState } from "react"
+import { useTarefas, type Tarefa, type TarefaStatus } from "@/hooks/useTarefas"
+import { criarTarefa, editarTarefa, gerarInsightsTarefas, sincronizarNotion } from "@/lib/actions/tarefas"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Checkbox } from "@/components/ui/checkbox"
-import { toast } from "sonner"
-import { RefreshCw, AlertCircle, Clock, Ban, ListTodo, Users, ChevronDown, ChevronUp } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "sonner"
+import { ListTodo, Plus, Sparkles, User, Calendar, AlertTriangle, Pencil, RefreshCw } from "lucide-react"
 import { ClienteBanner } from "@/components/cliente-banner"
 
-export default function TarefasPage() {
-  const { fetchLatestTaskSnapshot } = useSupabase()
-  const [snapshot, setSnapshot] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [isUploading, setIsUploading] = useState(false)
-  const [uploadOpen, setUploadOpen] = useState(false)
-  
-  // Upload State
-  const [jsonInput, setJsonInput] = useState("")
+// ─── Kanban column definitions ────────────────────────────────────────────────
 
-  // Filters State
-  const [filterResponsavel, setFilterResponsavel] = useState("all")
-  const [filterPrioridade, setFilterPrioridade] = useState("all")
-  const [filterStatus, setFilterStatus] = useState("all")
-  const [groupByResponsavel, setGroupByResponsavel] = useState(false)
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+const COLUNAS: {
+  status: TarefaStatus
+  label: string
+  colorClass: string
+  bgClass: string
+}[] = [
+  {
+    status: "Pendente",
+    label: "Pendente",
+    colorClass: "text-yellow-500",
+    bgClass: "border-yellow-500/20",
+  },
+  {
+    status: "Em Andamento",
+    label: "Em Andamento",
+    colorClass: "text-blue-400",
+    bgClass: "border-blue-400/20",
+  },
+  {
+    status: "Concluído",
+    label: "Concluído",
+    colorClass: "text-green-500",
+    bgClass: "border-green-500/20",
+  },
+]
 
-  useEffect(() => {
-    loadSnapshot()
-  }, [])
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-  const loadSnapshot = async () => {
-    try {
-      setLoading(true)
-      const data = await fetchLatestTaskSnapshot()
-      setSnapshot(data || null)
-    } catch (error: any) {
-      if (error.code !== 'PGRST116') {
-        console.error("Error fetching tasks:", error)
-        toast.error("Erro ao carregar as tarefas.")
-      }
-    } finally {
-      setLoading(false)
-    }
+function parsePrazo(prazo: string | null | undefined): Date | null {
+  if (!prazo) return null
+  if (/^\d{4}-\d{2}-\d{2}/.test(prazo)) {
+    const str = prazo.length === 10 ? `${prazo}T12:00:00` : prazo
+    const d = new Date(str)
+    return isNaN(d.getTime()) ? null : d
+  }
+  const br = prazo.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+  if (br) {
+    const d = new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]), 12, 0, 0)
+    return isNaN(d.getTime()) ? null : d
+  }
+  return null
+}
+
+function formatDateForInput(prazo: string | null | undefined): string {
+  const d = parsePrazo(prazo)
+  if (!d) return ""
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+function normalizarStatus(s: string | null | undefined): TarefaStatus {
+  const v = (s ?? "").toLowerCase().trim()
+  if (v === "em andamento" || v === "in_progress" || v === "em-andamento" || v === "in progress") return "Em Andamento"
+  if (v.includes("conclu") || v === "done" || v === "completed" || v === "finalizado") return "Concluído"
+  return "Pendente"
+}
+
+// ─── Task card with inline edit dialog ────────────────────────────────────────
+
+function TarefaCard({ tarefa }: { tarefa: Tarefa }) {
+  const [editOpen, setEditOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [tituloEdit, setTituloEdit] = useState("")
+  const [responsavelEdit, setResponsavelEdit] = useState("")
+  const [prazoEdit, setPrazoEdit] = useState("")
+  const [statusEdit, setStatusEdit] = useState<TarefaStatus>("Pendente")
+
+  const concluida = normalizarStatus(tarefa.status) === "Concluído"
+  const dataPrazo = parsePrazo(tarefa.prazo)
+  const vencida = dataPrazo !== null && dataPrazo < new Date() && !concluida
+
+  const handleOpen = () => {
+    setTituloEdit(tarefa.titulo)
+    setResponsavelEdit(tarefa.responsavel ?? "")
+    setPrazoEdit(formatDateForInput(tarefa.prazo))
+    setStatusEdit(normalizarStatus(tarefa.status))
+    setEditOpen(true)
   }
 
-  const handleUpload = async () => {
-    if (!jsonInput.trim()) {
-      toast.error("Cole o JSON com as tarefas.")
+  const handleSalvar = async () => {
+    if (!tituloEdit.trim()) {
+      toast.error("O título é obrigatório.")
       return
     }
-
-    let parsedTasks = []
     try {
-      parsedTasks = JSON.parse(jsonInput)
-      if (!Array.isArray(parsedTasks)) {
-        throw new Error("O JSON deve ser um array de tarefas.")
-      }
-    } catch (e) {
-      toast.error("JSON inválido. Verifique a formatação.")
-      return
-    }
-
-    try {
-      setIsUploading(true)
-      const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_TAREFAS
-      if (!webhookUrl) throw new Error("Webhook URL não configurada.")
-
-      const payload = {
-        tarefas: parsedTasks,
-        enviado_por: "Sistema Dashboard",
-        fonte: "notion",
-        sync_id: Date.now()
-      }
-
-      const response = await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+      setIsSaving(true)
+      await editarTarefa(tarefa.id, {
+        titulo: tituloEdit,
+        responsavel: responsavelEdit || null,
+        prazo: prazoEdit || null,
+        status: statusEdit,
       })
-
-      if (!response.ok) {
-        throw new Error("Erro na resposta do webhook.")
-      }
-
-      toast.success("Sincronização enviada com sucesso!")
-      setUploadOpen(false)
-      setJsonInput("")
-      
-      // Delay to let webhook process
-      setTimeout(loadSnapshot, 3000)
-
+      toast.success("Tarefa atualizada!")
+      setEditOpen(false)
     } catch (error: any) {
-      console.error("Upload error:", error)
-      toast.error(error.message || "Falha ao enviar tarefas.")
+      toast.error(error.message || "Erro ao atualizar a tarefa.")
     } finally {
-      setIsUploading(false)
+      setIsSaving(false)
     }
   }
 
-  const getPriorityBadgeProps = (priority: string) => {
-    const p = priority?.toLowerCase() || ""
-    if (p === 'urgente') return { className: 'bg-red-500 hover:bg-red-600 border-transparent text-white' }
-    if (p === 'alta') return { className: 'bg-orange-100 text-orange-800 hover:bg-orange-200 border-transparent dark:bg-orange-900 dark:text-orange-100' }
-    if (p === 'média' || p === 'media') return { className: 'bg-yellow-500 hover:bg-yellow-600 border-transparent text-white' }
-    return { variant: 'secondary' as any }
+  return (
+    <>
+      <Card
+        onClick={handleOpen}
+        className={`p-3 cursor-pointer group transition-colors ${
+          vencida
+            ? "border-red-500/40 bg-red-950/10 hover:bg-red-950/20"
+            : "hover:bg-muted/40 hover:border-border/80"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium leading-snug">{tarefa.titulo}</p>
+          <Pencil className="h-3 w-3 mt-0.5 flex-shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors" />
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          {tarefa.responsavel && (
+            <span className="flex items-center gap-1">
+              <User className="h-3 w-3" />
+              {tarefa.responsavel}
+            </span>
+          )}
+          {tarefa.prazo && (
+            <span className={`flex items-center gap-1 ${vencida ? "text-red-500 font-medium" : ""}`}>
+              <Calendar className="h-3 w-3" />
+              {dataPrazo ? dataPrazo.toLocaleDateString("pt-BR") : tarefa.prazo}
+            </span>
+          )}
+        </div>
+      </Card>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Editar Tarefa</DialogTitle>
+            <DialogDescription>
+              As alterações são salvas diretamente no banco de dados.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor={`titulo-edit-${tarefa.id}`}>Título *</Label>
+              <Input
+                id={`titulo-edit-${tarefa.id}`}
+                value={tituloEdit}
+                onChange={(e) => setTituloEdit(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSalvar()}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor={`resp-edit-${tarefa.id}`}>Responsável</Label>
+                <Input
+                  id={`resp-edit-${tarefa.id}`}
+                  placeholder="Ex: João"
+                  value={responsavelEdit}
+                  onChange={(e) => setResponsavelEdit(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`prazo-edit-${tarefa.id}`}>Prazo</Label>
+                <Input
+                  id={`prazo-edit-${tarefa.id}`}
+                  type="date"
+                  value={prazoEdit}
+                  onChange={(e) => setPrazoEdit(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor={`status-edit-${tarefa.id}`}>Status</Label>
+              <Select
+                value={statusEdit}
+                onValueChange={(v) => setStatusEdit(v as TarefaStatus)}
+              >
+                <SelectTrigger id={`status-edit-${tarefa.id}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Pendente">Pendente</SelectItem>
+                  <SelectItem value="Em Andamento">Em Andamento</SelectItem>
+                  <SelectItem value="Concluído">Concluído</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={isSaving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSalvar} disabled={isSaving}>
+              {isSaving ? "Salvando..." : "Salvar alterações"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function TarefasPage() {
+  const { tarefas, loading, erro } = useTarefas()
+
+  // Dialog state
+  const [novaTarefaOpen, setNovaTarefaOpen] = useState(false)
+  const [insightsOpen, setInsightsOpen] = useState(false)
+
+  // Loading state
+  const [isSaving, setIsSaving] = useState(false)
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false)
+  const [insightsText, setInsightsText] = useState("")
+  const [isSyncing, setIsSyncing] = useState(false)
+
+  // Nova tarefa form
+  const [titulo, setTitulo] = useState("")
+  const [responsavel, setResponsavel] = useState("")
+  const [prazo, setPrazo] = useState("")
+  const [status, setStatus] = useState<TarefaStatus>("Pendente")
+
+  const resetForm = () => {
+    setTitulo("")
+    setResponsavel("")
+    setPrazo("")
+    setStatus("Pendente")
   }
 
+  const handleCriarTarefa = async () => {
+    if (!titulo.trim()) {
+      toast.error("O título da tarefa é obrigatório.")
+      return
+    }
+    try {
+      setIsSaving(true)
+      await criarTarefa({ titulo, responsavel, prazo, status })
+      toast.success("Tarefa enviada! O n8n irá processar e salvar em breve.")
+      setNovaTarefaOpen(false)
+      resetForm()
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao criar a tarefa.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleSincronizarNotion = async () => {
+    try {
+      setIsSyncing(true)
+      await sincronizarNotion(tarefas)
+      toast.success("Tarefas sincronizadas com o Notion!")
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao sincronizar com o Notion.")
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const handleGerarInsights = async () => {
+    try {
+      setInsightsText("")
+      setIsLoadingInsights(true)
+      setInsightsOpen(true)
+      const resultado = await gerarInsightsTarefas(tarefas)
+      setInsightsText(resultado)
+    } catch (error: any) {
+      setInsightsText("Erro ao gerar insights: " + (error.message || "Tente novamente."))
+    } finally {
+      setIsLoadingInsights(false)
+    }
+  }
+
+  const tarefasPorColuna = (s: TarefaStatus) =>
+    tarefas.filter((t) => normalizarStatus(t.status) === s)
+
+  // ── Loading skeleton ─────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex-1 space-y-4 p-8 pt-6">
-        <Skeleton className="h-10 w-64 mb-6" />
-        <div className="grid gap-4 md:grid-cols-4">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 w-full" />)}
+      <div className="flex-1 space-y-6 p-8 pt-6">
+        <Skeleton className="h-8 w-56" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-[420px] w-full rounded-lg" />
+          ))}
         </div>
-        <Skeleton className="h-[400px] w-full" />
       </div>
     )
   }
 
-  const tarefas = snapshot?.tarefas || []
-  const resumo = snapshot?.resumo_backlog || { total: 0, urgentes: 0, vencidas: 0, bloqueadas: 0 }
-  const responsaveisMap = snapshot?.por_responsavel || {}
-  const responsaveisList = Object.keys(responsaveisMap)
-
-  // Filter logic
-  let filteredTasks = tarefas.filter((t: any) => {
-    if (filterResponsavel !== 'all' && t.responsavel !== filterResponsavel) return false
-    if (filterPrioridade !== 'all' && t.prioridade?.toLowerCase() !== filterPrioridade.toLowerCase()) return false
-    if (filterStatus !== 'all' && t.status?.toLowerCase() !== filterStatus.toLowerCase()) return false
-    return true
-  })
-
-  const renderTaskTable = (tasks: any[]) => (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Título</TableHead>
-          <TableHead>Responsável</TableHead>
-          <TableHead>Categoria</TableHead>
-          <TableHead>Prioridade</TableHead>
-          <TableHead>Prazo</TableHead>
-          <TableHead>Status</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {tasks.map((t: any, i: number) => {
-          const isVencida = t.vencida === true || (t.prazo && new Date(t.prazo) < new Date() && t.status !== 'Concluída')
-          return (
-            <TableRow key={i} className={isVencida ? "bg-red-50 dark:bg-red-950/20" : ""}>
-              <TableCell className="font-medium">
-                <div className="flex flex-col space-y-1">
-                  <span>{t.titulo}</span>
-                  {t.relacionada_a_kpi && (
-                    <Badge variant="outline" className="w-fit text-[10px] h-4 leading-none">Relacionado a KPI</Badge>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell>{t.responsavel || "Não atribuído"}</TableCell>
-              <TableCell><Badge variant="outline">{t.categoria}</Badge></TableCell>
-              <TableCell><Badge {...getPriorityBadgeProps(t.prioridade)}>{t.prioridade}</Badge></TableCell>
-              <TableCell className={isVencida ? "text-red-500 font-medium" : ""}>
-                {t.prazo ? new Date(t.prazo).toLocaleDateString() : "-"}
-              </TableCell>
-              <TableCell><Badge variant={t.status?.toLowerCase() === 'concluída' ? 'outline' : 'secondary'}>{t.status}</Badge></TableCell>
-            </TableRow>
-          )
-        })}
-        {tasks.length === 0 && (
-          <TableRow>
-            <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nenhuma tarefa encontrada.</TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
-  )
-
-  const toggleGroup = (resp: string) => {
-    setExpandedGroups(prev => ({ ...prev, [resp]: !prev[resp] }))
-  }
-
+  // ── Main render ──────────────────────────────────────────────────────────
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <ClienteBanner />
-      <div className="flex items-center justify-between space-y-2">
+
+      {/* ── Erro de conexão ─────────────────────────────────────────────── */}
+      {erro && (
+        <div className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          <div>
+            <span className="font-semibold">Erro ao carregar tarefas: </span>
+            {erro}
+            <p className="mt-1 text-xs text-destructive/80">
+              Verifique se a tabela <code className="font-mono">tarefas</code> existe no Supabase e se o RLS permite leitura pela chave anônima.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
           <ListTodo className="h-4 w-4" />
           Gestão de Tarefas
         </h2>
-        
-        <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Sincronizar Tarefas
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>Sincronização Manual (Notion)</DialogTitle>
-              <DialogDescription>
-                Cole o JSON exportado do Notion para atualizar o backlog de tarefas.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <Label htmlFor="json">Payload JSON</Label>
-              <Textarea 
-                id="json" 
-                className="font-mono text-xs min-h-[300px] mt-2" 
-                placeholder='[{"titulo": "Exemplo", "responsavel": "João"}]' 
-                value={jsonInput}
-                onChange={e => setJsonInput(e.target.value)}
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setUploadOpen(false)} disabled={isUploading}>Cancelar</Button>
-              <Button onClick={handleUpload} disabled={isUploading}>
-                {isUploading ? "Enviando..." : "Sincronizar"}
+
+        <div className="flex items-center gap-2">
+          {/* Sincronizar Notion */}
+          <Button
+            variant="outline"
+            onClick={handleSincronizarNotion}
+            disabled={isSyncing || tarefas.length === 0}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
+            {isSyncing ? "Sincronizando..." : "Sincronizar Notion"}
+          </Button>
+
+          {/* Gerar Insights */}
+          <Button
+            variant="outline"
+            onClick={handleGerarInsights}
+            disabled={isLoadingInsights || tarefas.length === 0}
+          >
+            <Sparkles className="mr-2 h-4 w-4" />
+            {isLoadingInsights ? "Gerando..." : "🤖 Gerar Insights"}
+          </Button>
+
+          {/* Nova Tarefa */}
+          <Dialog
+            open={novaTarefaOpen}
+            onOpenChange={(open) => {
+              setNovaTarefaOpen(open)
+              if (!open) resetForm()
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Tarefa
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[480px]">
+              <DialogHeader>
+                <DialogTitle>Nova Tarefa</DialogTitle>
+                <DialogDescription>
+                  Preencha os dados. O n8n irá criar a tarefa e sincronizar em tempo real.
+                </DialogDescription>
+              </DialogHeader>
 
-      {!snapshot ? (
-        <Card>
-          <CardContent className="pt-6 flex flex-col items-center justify-center text-center h-64">
-            <ListTodo className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium">Nenhum backlog disponível</h3>
-            <p className="text-muted-foreground mt-2 max-w-sm">
-              Sincronize as tarefas exportadas do Notion para visualizar o backlog.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total de Tarefas</CardTitle>
-                <ListTodo className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent><div className="text-2xl font-bold">{resumo.total}</div></CardContent>
-            </Card>
-            <Card className="border-red-200 bg-red-50 dark:bg-red-950/10">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-red-600">Urgentes</CardTitle>
-                <AlertCircle className="h-4 w-4 text-red-600" />
-              </CardHeader>
-              <CardContent><div className="text-2xl font-bold text-red-600">{resumo.urgentes}</div></CardContent>
-            </Card>
-            <Card className="border-red-200 bg-red-50 dark:bg-red-950/10">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-red-600">Vencidas</CardTitle>
-                <Clock className="h-4 w-4 text-red-600" />
-              </CardHeader>
-              <CardContent><div className="text-2xl font-bold text-red-600">{resumo.vencidas}</div></CardContent>
-            </Card>
-            <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-yellow-600">Bloqueadas</CardTitle>
-                <Ban className="h-4 w-4 text-yellow-600" />
-              </CardHeader>
-              <CardContent><div className="text-2xl font-bold text-yellow-600">{resumo.bloqueadas}</div></CardContent>
-            </Card>
-          </div>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="titulo">Título *</Label>
+                  <Input
+                    id="titulo"
+                    placeholder="Ex: Criar campanha de remarketing"
+                    value={titulo}
+                    onChange={(e) => setTitulo(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleCriarTarefa()}
+                  />
+                </div>
 
-          <Card>
-            <CardHeader className="pb-4 border-b">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <CardTitle>Backlog Priorizado</CardTitle>
-                
-                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                  <div className="flex items-center space-x-2 mr-4">
-                    <Checkbox 
-                      id="groupby" 
-                      checked={groupByResponsavel}
-                      onCheckedChange={(c) => setGroupByResponsavel(!!c)}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="responsavel">Responsável</Label>
+                    <Input
+                      id="responsavel"
+                      placeholder="Ex: João"
+                      value={responsavel}
+                      onChange={(e) => setResponsavel(e.target.value)}
                     />
-                    <Label htmlFor="groupby" className="cursor-pointer">Ver por responsável</Label>
                   </div>
-                  
-                  <Select value={filterResponsavel} onValueChange={setFilterResponsavel}>
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Responsável" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      {responsaveisList.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-2">
+                    <Label htmlFor="prazo">Prazo</Label>
+                    <Input
+                      id="prazo"
+                      type="date"
+                      value={prazo}
+                      onChange={(e) => setPrazo(e.target.value)}
+                    />
+                  </div>
+                </div>
 
-                  <Select value={filterPrioridade} onValueChange={setFilterPrioridade}>
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Prioridade" />
+                <div className="space-y-2">
+                  <Label htmlFor="status">Status Inicial</Label>
+                  <Select
+                    value={status}
+                    onValueChange={(v) => setStatus(v as TarefaStatus)}
+                  >
+                    <SelectTrigger id="status">
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
-                      <SelectItem value="urgente">Urgente</SelectItem>
-                      <SelectItem value="alta">Alta</SelectItem>
-                      <SelectItem value="média">Média</SelectItem>
-                      <SelectItem value="baixa">Baixa</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="a fazer">A fazer</SelectItem>
-                      <SelectItem value="em andamento">Em andamento</SelectItem>
-                      <SelectItem value="bloqueada">Bloqueada</SelectItem>
-                      <SelectItem value="concluída">Concluída</SelectItem>
+                      <SelectItem value="Pendente">Pendente</SelectItem>
+                      <SelectItem value="Em Andamento">Em Andamento</SelectItem>
+                      <SelectItem value="Concluído">Concluído</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="pt-6 p-0">
-              {groupByResponsavel ? (
-                <div className="space-y-4 p-6">
-                  {responsaveisList.filter(r => filterResponsavel === 'all' || filterResponsavel === r).map(resp => {
-                    const respTasks = filteredTasks.filter((t: any) => t.responsavel === resp)
-                    if (respTasks.length === 0) return null
-                    
-                    const isExpanded = expandedGroups[resp] !== false // default true
-                    const urgentesCount = respTasks.filter((t: any) => t.prioridade?.toLowerCase() === 'urgente').length
 
-                    return (
-                      <Card key={resp} className="overflow-hidden border-muted">
-                        <div 
-                          className="flex items-center justify-between p-4 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
-                          onClick={() => toggleGroup(resp)}
-                        >
-                          <div className="flex items-center gap-4">
-                            <Users className="h-5 w-5 text-muted-foreground" />
-                            <h4 className="font-semibold text-lg">{resp}</h4>
-                            <div className="flex gap-2">
-                              <Badge variant="secondary">{respTasks.length} tarefas</Badge>
-                              {urgentesCount > 0 && <Badge variant="destructive">{urgentesCount} urgentes</Badge>}
-                            </div>
-                          </div>
-                          {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                        </div>
-                        {isExpanded && (
-                          <div className="border-t">
-                            {renderTaskTable(respTasks)}
-                          </div>
-                        )}
-                      </Card>
-                    )
-                  })}
-                  {filteredTasks.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">Nenhuma tarefa encontrada com os filtros atuais.</div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setNovaTarefaOpen(false)}
+                  disabled={isSaving}
+                >
+                  Cancelar
+                </Button>
+                <Button onClick={handleCriarTarefa} disabled={isSaving}>
+                  {isSaving ? "Salvando..." : "Criar Tarefa"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* ── Kanban / empty state ────────────────────────────────────────── */}
+      {tarefas.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center h-64 text-center pt-6">
+            <ListTodo className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium">Nenhuma tarefa cadastrada</h3>
+            <p className="text-muted-foreground mt-2 max-w-sm mb-4">
+              Crie a primeira tarefa ou aguarde a sincronização em tempo real com o Supabase.
+            </p>
+            <Button variant="outline" onClick={() => setNovaTarefaOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Criar primeira tarefa
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+          {COLUNAS.map(({ status: colStatus, label, colorClass, bgClass }) => {
+            const items = tarefasPorColuna(colStatus)
+            return (
+              <div key={colStatus} className="flex flex-col gap-3">
+                {/* Column header */}
+                <div
+                  className={`flex items-center justify-between rounded-md border px-3 py-2 bg-muted/20 ${bgClass}`}
+                >
+                  <h3
+                    className={`text-xs font-semibold uppercase tracking-widest ${colorClass}`}
+                  >
+                    {label}
+                  </h3>
+                  <Badge variant="secondary" className="text-xs h-5">
+                    {items.length}
+                  </Badge>
+                </div>
+
+                {/* Cards */}
+                <div className="flex flex-col gap-2 min-h-[100px]">
+                  {items.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-muted-foreground/20 h-20 flex items-center justify-center">
+                      <span className="text-xs text-muted-foreground/50">
+                        Sem tarefas
+                      </span>
+                    </div>
+                  ) : (
+                    items.map((tarefa) => (
+                      <TarefaCard key={tarefa.id} tarefa={tarefa} />
+                    ))
                   )}
                 </div>
-              ) : (
-                <div className="p-1">
-                  {renderTaskTable(filteredTasks)}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </>
+              </div>
+            )
+          })}
+        </div>
       )}
+
+      {/* ── Insights Dialog ──────────────────────────────────────────────── */}
+      <Dialog open={insightsOpen} onOpenChange={setInsightsOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Insights das Tarefas
+            </DialogTitle>
+            <DialogDescription>
+              Análise gerada pelo agente de IA com base nas tarefas atuais.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 max-h-[420px] overflow-y-auto">
+            {isLoadingInsights ? (
+              <div className="space-y-3">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+                <Skeleton className="h-4 w-4/6" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/6" />
+                <Skeleton className="h-4 w-full" />
+              </div>
+            ) : (
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+                {insightsText}
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInsightsOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

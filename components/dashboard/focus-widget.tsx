@@ -6,7 +6,7 @@ import { AlertTriangle, Clock, CheckSquare, ArrowRight, CalendarDays } from "luc
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
-import { format, isAfter, parseISO } from "date-fns"
+import { format, isAfter } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 interface Props {
@@ -40,24 +40,28 @@ export function FocusWidget({ meetings, tasks, loading, clienteSelecionado }: Pr
                  t.conta_nome === clienteSelecionado.conta_nome
         })
         .filter((t: any) => {
-          if (t.status === "Concluída") return false
-          const isUrgent = t.prioridade === "Urgente" ||
-                           t.status === "Urgente" || t.status === "urgent"
-          const isOverdue = t.due_date && isAfter(now, parseISO(t.due_date))
+          const s = (t.status ?? "").toLowerCase()
+          if (s.includes("conclu") || s === "done") return false
+          const isUrgent = (t.prioridade ?? "").toLowerCase() === "urgente" || s === "urgente"
+          // aceita tanto due_date (legado) quanto prazo (nova tabela)
+          const dateStr = t.prazo || t.due_date
+          const isOverdue = dateStr && isAfter(now, new Date(dateStr.length === 10 ? dateStr + "T12:00:00" : dateStr))
           return isUrgent || isOverdue
         })
         .slice(0, 4)
 
       for (const t of filtered) {
-        const isOverdue = t.due_date && isAfter(now, parseISO(t.due_date))
+        const dateStr = t.prazo || t.due_date
+        const dateObj = dateStr ? new Date(dateStr.length === 10 ? dateStr + "T12:00:00" : dateStr) : null
+        const isOverdue = dateObj && isAfter(now, dateObj)
         items.push({
           type: "task",
           label: t.titulo || t.title || t.nome || "Tarefa sem título",
-          meta: t.due_date
-            ? `Vence ${format(parseISO(t.due_date), "dd MMM", { locale: ptBR })}`
+          meta: dateObj
+            ? `Vence ${format(dateObj, "dd MMM", { locale: ptBR })}`
             : undefined,
           urgency: isOverdue ? "overdue" : "urgent",
-          source: t.cliente || t.conta_nome,
+          source: t.cliente || t.conta_nome || t.responsavel,
         })
       }
     }
@@ -72,7 +76,7 @@ export function FocusWidget({ meetings, tasks, loading, clienteSelecionado }: Pr
       .slice(0, 3)
 
     for (const meeting of recentMeetings) {
-      const actionItems: string[] = []
+      const actionItems: any[] = []
 
       if (Array.isArray(meeting.action_items)) {
         actionItems.push(...meeting.action_items.slice(0, 2))

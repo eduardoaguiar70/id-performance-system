@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\" -Directory)",
+      "Bash(Select-Object -First 20)",
+      "Bash(Format-Table Name)",
+      "Bash(npx tsc *)",
+      "Bash(Remove-Item -Recurse -Force \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\\\\app\\\\briefing\")",
+      "Bash(npm run *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\" -Recurse -Directory | Select-Object -First 30 | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\\\\components\" -Recurse -File | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\\\\hooks\" -File 2>/dev/null | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\\\\hooks\" -File | ForEach-Object { $_.Name })",
+      "Bash(node -e \"require\\('remark-gfm'\\); console.log\\('ok'\\)\")",
+      "Bash(npm install *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\" -Recurse -Force)",
+      "Bash(Select-Object FullName)",
+      "Bash(Copy-Item *)",
+      "Bash(git add *)"
+    ]
+  }
+}

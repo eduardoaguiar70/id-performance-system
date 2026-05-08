@@ -1,9 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export { supabase }
 
 export function useSupabase() {
   const fetchLatestKpiSnapshot = async () => {
@@ -63,7 +60,7 @@ export function useSupabase() {
       .limit(1)
       .single()
 
-    if (error && error.code !== 'PGRST116') throw error // Ignore if no rows
+    if (error && error.code !== 'PGRST116') throw error
     return data || null
   }
 
