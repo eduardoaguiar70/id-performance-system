@@ -10,7 +10,12 @@ import { headers } from "next/headers";
 
 import NextTopLoader from 'nextjs-toploader';
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-sans",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "ID Performance - Automação de Marketing",

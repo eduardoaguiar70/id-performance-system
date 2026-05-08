@@ -12,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowDownIcon, ArrowUpIcon, AlertTriangleIcon, TrendingUp, Building2, RefreshCw, Bot, Lightbulb, Target, PauseCircle, CalendarRange, X, ShoppingCart, CreditCard, Eye, Repeat2, DollarSign, ShoppingBag } from "lucide-react"
+import { ArrowDownIcon, ArrowUpIcon, AlertTriangleIcon, TrendingUp, Building2, RefreshCw, Bot, Lightbulb, Target, CalendarRange, X, ShoppingCart, CreditCard, Eye, Repeat2, DollarSign, ShoppingBag, Megaphone, MousePointerClick } from "lucide-react"
 import { format, subDays, isAfter, differenceInDays } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import type { DateRange } from "react-day-picker"
@@ -112,7 +112,7 @@ export default function KPIsPage() {
     setAtualizando(true)
     const toastId = toast.loading(`Atualizando KPIs de ${clienteSelecionado.conta_nome}...`)
     try {
-      const res = await fetch("https://n8n-n8n-start.kfocge.easypanel.host/webhook/kpis-manual", {
+      const res = await fetch("https://n8n-n8n-start.kfocge.easypanel.host/webhook/capturar-metricas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -158,8 +158,12 @@ export default function KPIsPage() {
 
   const handleGerarAnaliseIA = async () => {
     if (!clienteSelecionado) { toast.error("Selecione um cliente."); return }
-    if (!analiseDateRange?.from || !analiseDateRange?.to) {
-      toast.error("Selecione data de início e fim no calendário.")
+    if (
+      !analiseDateRange?.from ||
+      !analiseDateRange?.to ||
+      !isAfter(analiseDateRange.to, analiseDateRange.from)
+    ) {
+      toast.error("Selecione uma data de início e uma data de fim diferentes.")
       return
     }
 
@@ -394,7 +398,7 @@ export default function KPIsPage() {
             </div>
             <Button
               size="lg"
-              onClick={() => setAnaliseModalOpen(true)}
+              onClick={() => { setAnaliseDateRange(undefined); setAnaliseModalOpen(true) }}
               disabled={gerandoIA || !clienteSelecionado}
               className="gap-2 shadow-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0"
             >
@@ -423,12 +427,22 @@ export default function KPIsPage() {
 
     const observacoes = parseSafe(analiseIA.observacoes, null)
     const acoes = parseSafe(analiseIA.acoes_recomendadas, null)
-    const campanhasIA = parseSafe(analiseIA.campanhas, null)
-    const anunciosIA = parseSafe(analiseIA.anuncios, null)
 
-    // Oculta cards se os objetos vierem vazios do banco
-    const hasCampanhas = campanhasIA && Object.keys(campanhasIA).length > 0
-    const hasAnuncios = anunciosIA && Object.keys(anunciosIA).length > 0
+    // Nível 1: parse das colunas 'campanhas' e 'anuncios' (Supabase retorna como string JSON)
+    const campanhasObj = parseSafe(analiseIA.campanhas, null)
+    const anunciosObj  = parseSafe(analiseIA.anuncios,  null)
+
+    // Nível 2: cada sub-array interno também pode vir stringified (n8n serializa em camadas)
+    // parseSafe é idempotente — se já for array, retorna directamente sem re-parsear
+    const _melhor  = parseSafe(campanhasObj?.melhor_desempenho, null)
+    const _pior    = parseSafe(campanhasObj?.pior_desempenho,   null)
+    const _top     = parseSafe(anunciosObj?.top_performers,     null)
+    const _pausar  = parseSafe(anunciosObj?.pausar,             null)
+
+    const melhorDesempenho: any[] = Array.isArray(_melhor) ? _melhor : []
+    const piorDesempenho: any[]   = Array.isArray(_pior)   ? _pior   : []
+    const topPerformers: any[]    = Array.isArray(_top)    ? _top    : []
+    const pausar: any[]           = Array.isArray(_pausar) ? _pausar : []
 
     const renderTextOrArray = (content: any) => {
       if (!content) return null
@@ -447,75 +461,6 @@ export default function KPIsPage() {
       return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num)
     }
 
-    const renderCampanhasIA = (data: any) => {
-      if (!data) return <p className="text-muted-foreground">Sem dados disponíveis.</p>
-      return Object.entries(data).map(([key, val], idx) => {
-        if (!Array.isArray(val)) return null
-        const isPositive = key.includes('melhor') || key.includes('top') || key.includes('bom')
-        return (
-          <div key={idx} className="mb-6 last:mb-0">
-            <h4 className={`font-semibold capitalize mb-3 flex items-center gap-2 ${isPositive ? 'text-green-600' : 'text-red-500'}`}>
-              {key.replace(/_/g, ' ')}
-            </h4>
-            <div className="space-y-3">
-              {val.map((item: any, i: number) => (
-                <div key={i} className={`bg-muted/30 p-4 rounded-lg border ${isPositive ? 'border-green-500/20' : 'border-red-500/20'}`}>
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-semibold text-base">{item.nome || item.campanha || "Campanha Desconhecida"}</span>
-                    {item.roas && (
-                      <Badge variant={isPositive ? 'default' : 'destructive'} className={isPositive ? 'bg-green-500 hover:bg-green-600' : ''}>
-                        ROAS: {Number(item.roas).toFixed(2)}x
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex gap-4 mb-3 text-xs text-muted-foreground">
-                    {item.spend !== undefined && <span>Investimento: <strong className="text-foreground">{formatCurrency(item.spend)}</strong></span>}
-                    {item.compras !== undefined && <span>Compras: <strong className="text-foreground">{item.compras}</strong></span>}
-                  </div>
-                  {(item.insight || item.justificativa || item.motivo) && (
-                    <div className="bg-background rounded p-2 text-sm text-foreground/90 border-l-2 border-primary/40">
-                      {item.insight || item.justificativa || item.motivo}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })
-    }
-
-    const renderAnunciosIA = (data: any) => {
-      if (!data) return <p className="text-muted-foreground">Sem dados disponíveis.</p>
-      return Object.entries(data).map(([key, val], idx) => {
-        if (!Array.isArray(val)) return null
-        const isPause = key.includes('pausa') || key.includes('pior') || key.includes('ruim')
-        return (
-          <div key={idx} className="mb-6 last:mb-0">
-            <h4 className={`font-semibold capitalize mb-3 flex items-center gap-2 ${isPause ? 'text-orange-500' : 'text-green-600'}`}>
-              {isPause && <PauseCircle className="h-4 w-4" />}
-              {key.replace(/_/g, ' ')}
-            </h4>
-            <div className="space-y-3">
-              {val.map((item: any, i: number) => (
-                <div key={i} className={`bg-muted/30 p-3 rounded-lg border-l-4 ${isPause ? 'border-orange-500' : 'border-green-500'}`}>
-                  <div className="mb-1">
-                    <span className="font-semibold text-sm block text-foreground">{item.ad_name || item.anuncio || item.nome || "Anúncio Desconhecido"}</span>
-                    {item.campaign && <span className="text-[10px] uppercase text-muted-foreground bg-muted px-2 py-0.5 rounded-sm inline-block mt-1">Campanha: {item.campaign}</span>}
-                  </div>
-                  {(item.insight || item.motivo || item.justificativa) && (
-                    <span className="text-muted-foreground text-xs block leading-snug mt-2">
-                      {item.insight || item.motivo || item.justificativa}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })
-    }
-
     return (
       <div className="space-y-6 mt-4 animate-in fade-in duration-500">
 
@@ -530,7 +475,7 @@ export default function KPIsPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setAnaliseModalOpen(true)}
+            onClick={() => { setAnaliseDateRange(undefined); setAnaliseModalOpen(true) }}
             disabled={gerandoIA}
             className="gap-2 text-xs"
           >
@@ -570,34 +515,221 @@ export default function KPIsPage() {
           </Card>
         )}
 
-        {/* Campanhas e Anúncios — só renderiza se não estiverem vazios */}
-        {(hasCampanhas || hasAnuncios) && (
-          <div className="grid gap-4 md:grid-cols-2">
-            {hasCampanhas && (
-              <Card className="shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Target className="h-5 w-5 text-blue-500" />
-                    Análise de Campanhas
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm pt-4">
-                  {renderCampanhasIA(campanhasIA)}
-                </CardContent>
-              </Card>
+        {/* ── Raio-X das Campanhas ──────────────────────────────────────────── */}
+        {(melhorDesempenho.length > 0 || piorDesempenho.length > 0) && (
+          <div className="space-y-5">
+            <div className="flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-blue-400" />
+              <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+                Raio-X das Campanhas
+              </span>
+            </div>
+
+            {/* Melhor Desempenho */}
+            {melhorDesempenho.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+                    Melhor Desempenho
+                  </span>
+                  <Badge variant="secondary" className="text-[10px] font-mono ml-auto">{melhorDesempenho.length}</Badge>
+                </div>
+                <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                  {melhorDesempenho.map((item: any, idx: number) => {
+                    const roas = Number(item.roas ?? 0)
+                    const nome = item.nome || item.nome_campanha || item.campanha || `Campanha ${idx + 1}`
+                    const insight = item.insight || item.diagnostico || item.motivo
+                    return (
+                      <div key={idx} className="border border-emerald-500/20 bg-card rounded-lg overflow-hidden flex flex-col">
+                        <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-border">
+                          <p className="text-sm font-semibold font-mono text-foreground leading-snug line-clamp-2 flex-1">{nome}</p>
+                          {roas > 0 && (
+                            <Badge variant="outline" className="shrink-0 border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+                              ROAS {roas.toFixed(2)}x
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="p-4 space-y-3 flex-1">
+                          {(item.spend !== undefined || item.compras !== undefined) && (
+                            <div className="grid grid-cols-2 gap-2">
+                              {item.spend !== undefined && (
+                                <div className="bg-muted/40 rounded-md px-3 py-2">
+                                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Investimento</p>
+                                  <p className="text-sm font-bold text-foreground">{formatCurrency(item.spend)}</p>
+                                </div>
+                              )}
+                              {item.compras !== undefined && (
+                                <div className="bg-muted/40 rounded-md px-3 py-2">
+                                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Compras</p>
+                                  <p className="text-sm font-bold text-foreground">{item.compras}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {insight && <p className="text-sm text-neutral-300 leading-relaxed">{insight}</p>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             )}
-            {hasAnuncios && (
-              <Card className="shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-purple-500" />
-                    Análise de Anúncios
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm pt-4">
-                  {renderAnunciosIA(anunciosIA)}
-                </CardContent>
-              </Card>
+
+            {/* Pior Desempenho */}
+            {piorDesempenho.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="h-2 w-2 rounded-full bg-red-500 flex-shrink-0" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-red-400">
+                    Pior Desempenho
+                  </span>
+                  <Badge variant="secondary" className="text-[10px] font-mono ml-auto">{piorDesempenho.length}</Badge>
+                </div>
+                <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                  {piorDesempenho.map((item: any, idx: number) => {
+                    const roas = Number(item.roas ?? 0)
+                    const nome = item.nome || item.nome_campanha || item.campanha || `Campanha ${idx + 1}`
+                    const insight = item.insight || item.diagnostico || item.motivo
+                    const recomendacao = item.recomendacao || item.recomendacao_acao || item.acao_sugerida
+                    return (
+                      <div key={idx} className="border border-red-500/20 bg-card rounded-lg overflow-hidden flex flex-col">
+                        <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-border">
+                          <p className="text-sm font-semibold font-mono text-foreground leading-snug line-clamp-2 flex-1">{nome}</p>
+                          {roas > 0 && (
+                            <Badge variant="destructive" className="shrink-0">
+                              ROAS {roas.toFixed(2)}x
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="p-4 space-y-3 flex-1">
+                          {(item.spend !== undefined || item.compras !== undefined) && (
+                            <div className="grid grid-cols-2 gap-2">
+                              {item.spend !== undefined && (
+                                <div className="bg-muted/40 rounded-md px-3 py-2">
+                                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Investimento</p>
+                                  <p className="text-sm font-bold text-foreground">{formatCurrency(item.spend)}</p>
+                                </div>
+                              )}
+                              {item.compras !== undefined && (
+                                <div className="bg-muted/40 rounded-md px-3 py-2">
+                                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Compras</p>
+                                  <p className="text-sm font-bold text-foreground">{item.compras}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {insight && <p className="text-sm text-neutral-300 leading-relaxed">{insight}</p>}
+                          {recomendacao && (
+                            <div className="bg-neutral-900 border-l-4 border-yellow-500 rounded-r-md px-3 py-2.5">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-500 mb-1">Ação Sugerida</p>
+                              <p className="text-xs text-neutral-200 leading-relaxed">{recomendacao}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Inteligência de Criativos (Anúncios) ─────────────────────────── */}
+        {(topPerformers.length > 0 || pausar.length > 0) && (
+          <div className="space-y-5">
+            <div className="flex items-center gap-2">
+              <MousePointerClick className="h-4 w-4 text-purple-400" />
+              <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+                Inteligência de Criativos
+              </span>
+            </div>
+
+            {/* Top Performers */}
+            {topPerformers.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Top Performers</span>
+                  <Badge variant="secondary" className="text-[10px] font-mono ml-auto">{topPerformers.length}</Badge>
+                </div>
+                <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                  {topPerformers.map((item: any, idx: number) => {
+                    const nome = item.nome_anuncio || item.ad_name || item.nome || item.anuncio || `Anúncio ${idx + 1}`
+                    const insight = item.insight || item.motivo || item.justificativa
+                    const campaign = item.campaign || item.campanha
+                    const cpa = item.cpa_atual ?? item.cpa
+                    return (
+                      <div key={idx} className="border border-emerald-500/20 bg-card rounded-lg overflow-hidden flex flex-col">
+                        <div className="flex items-start gap-2 px-4 py-3 border-b border-border">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0 mt-1.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-foreground leading-snug line-clamp-2">{nome}</p>
+                            {campaign && (
+                              <span className="text-[10px] uppercase text-muted-foreground bg-muted px-2 py-0.5 rounded-sm inline-block mt-1.5">
+                                {campaign}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="p-4 space-y-3 flex-1">
+                          {cpa !== undefined && cpa !== null && (
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">CPA</p>
+                              <p className="text-xl font-bold font-mono text-emerald-400 leading-none">{formatCurrency(cpa)}</p>
+                            </div>
+                          )}
+                          {insight && <p className="text-xs text-neutral-300 leading-relaxed">{insight}</p>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Para Pausar */}
+            {pausar.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="h-2 w-2 rounded-full bg-red-500 flex-shrink-0" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-red-400">Para Pausar</span>
+                  <Badge variant="secondary" className="text-[10px] font-mono ml-auto">{pausar.length}</Badge>
+                </div>
+                <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                  {pausar.map((item: any, idx: number) => {
+                    const nome = item.nome_anuncio || item.ad_name || item.nome || item.anuncio || `Anúncio ${idx + 1}`
+                    const motivoFalha = item.motivo_falha || item.insight || item.motivo || item.justificativa
+                    const campaign = item.campaign || item.campanha
+                    const cpa = item.cpa_atual ?? item.cpa
+                    return (
+                      <div key={idx} className="border border-red-500/20 bg-card rounded-lg overflow-hidden flex flex-col">
+                        <div className="flex items-start gap-2 px-4 py-3 border-b border-border">
+                          <span className="h-2 w-2 rounded-full bg-red-500 flex-shrink-0 mt-1.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-foreground leading-snug line-clamp-2">{nome}</p>
+                            {campaign && (
+                              <span className="text-[10px] uppercase text-muted-foreground bg-muted px-2 py-0.5 rounded-sm inline-block mt-1.5">
+                                {campaign}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="p-4 space-y-3 flex-1">
+                          {cpa !== undefined && cpa !== null && (
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">CPA Atual</p>
+                              <p className="text-xl font-bold font-mono text-red-400 leading-none">{formatCurrency(cpa)}</p>
+                            </div>
+                          )}
+                          {motivoFalha && <p className="text-xs text-neutral-300 leading-relaxed">{motivoFalha}</p>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -1015,7 +1147,12 @@ export default function KPIsPage() {
             </Button>
             <Button
               onClick={handleGerarAnaliseIA}
-              disabled={gerandoIA || !analiseDateRange?.from || !analiseDateRange?.to}
+              disabled={
+                gerandoIA ||
+                !analiseDateRange?.from ||
+                !analiseDateRange?.to ||
+                !isAfter(analiseDateRange.to!, analiseDateRange.from!)
+              }
             >
               <Bot className="mr-2 h-4 w-4" />
               Gerar Análise

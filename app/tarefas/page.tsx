@@ -93,9 +93,14 @@ function normalizarStatus(s: string | null | undefined): TarefaStatus {
 
 // ─── Task card with inline edit dialog ────────────────────────────────────────
 
-function TarefaCard({ tarefa }: { tarefa: Tarefa }) {
+function TarefaCard({
+  tarefa,
+  onUpdate,
+}: {
+  tarefa: Tarefa
+  onUpdate: (id: number, updates: Partial<Tarefa>) => void
+}) {
   const [editOpen, setEditOpen] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
   const [tituloEdit, setTituloEdit] = useState("")
   const [responsavelEdit, setResponsavelEdit] = useState("")
   const [prazoEdit, setPrazoEdit] = useState("")
@@ -118,20 +123,43 @@ function TarefaCard({ tarefa }: { tarefa: Tarefa }) {
       toast.error("O título é obrigatório.")
       return
     }
+
+    // Snapshot para rollback em caso de falha
+    const snapshot = {
+      titulo: tarefa.titulo,
+      responsavel: tarefa.responsavel,
+      prazo: tarefa.prazo,
+      status: tarefa.status,
+    }
+
+    // Optimistic UI — fecha o modal e reflecte a mudança imediatamente
+    onUpdate(tarefa.id, {
+      titulo: tituloEdit,
+      responsavel: responsavelEdit || null,
+      prazo: prazoEdit || null,
+      status: statusEdit,
+    })
+    setEditOpen(false)
+
     try {
-      setIsSaving(true)
-      await editarTarefa(tarefa.id, {
+      await editarTarefa({
+        tarefa_id: tarefa.id,
+        notion_id: (tarefa.notion_id as string | null) ?? null,
         titulo: tituloEdit,
         responsavel: responsavelEdit || null,
         prazo: prazoEdit || null,
         status: statusEdit,
       })
       toast.success("Tarefa atualizada!")
-      setEditOpen(false)
     } catch (error: any) {
-      toast.error(error.message || "Erro ao atualizar a tarefa.")
-    } finally {
-      setIsSaving(false)
+      // Rollback: reverte o estado visual e reabre o modal com os dados originais
+      onUpdate(tarefa.id, snapshot)
+      setTituloEdit(snapshot.titulo)
+      setResponsavelEdit(snapshot.responsavel ?? "")
+      setPrazoEdit(formatDateForInput(snapshot.prazo))
+      setStatusEdit(normalizarStatus(snapshot.status))
+      setEditOpen(true)
+      toast.error(error.message || "Falha ao salvar. As alterações foram revertidas.")
     }
   }
 
@@ -161,6 +189,24 @@ function TarefaCard({ tarefa }: { tarefa: Tarefa }) {
               <Calendar className="h-3 w-3" />
               {dataPrazo ? dataPrazo.toLocaleDateString("pt-BR") : tarefa.prazo}
             </span>
+          )}
+          {tarefa.origem === "notion" ? (
+            <Badge
+              variant="outline"
+              className="ml-auto text-[10px] px-1.5 py-0 h-4 bg-white text-neutral-900 border-neutral-300 font-medium flex items-center gap-1 shrink-0"
+            >
+              <span className="inline-flex items-center justify-center w-3 h-3 rounded-[2px] bg-neutral-900 text-white text-[7px] font-black leading-none shrink-0">
+                N
+              </span>
+              Notion
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="ml-auto text-[10px] px-1.5 py-0 h-4 bg-neutral-800 text-neutral-400 border-neutral-700/50 shrink-0"
+            >
+              Sistema
+            </Badge>
           )}
         </div>
       </Card>
@@ -225,11 +271,11 @@ function TarefaCard({ tarefa }: { tarefa: Tarefa }) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={isSaving}>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSalvar} disabled={isSaving}>
-              {isSaving ? "Salvando..." : "Salvar alterações"}
+            <Button onClick={handleSalvar}>
+              Salvar alterações
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -241,7 +287,7 @@ function TarefaCard({ tarefa }: { tarefa: Tarefa }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TarefasPage() {
-  const { tarefas, loading, erro } = useTarefas()
+  const { tarefas, loading, erro, updateTarefa } = useTarefas()
 
   // Dialog state
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false)
@@ -509,7 +555,7 @@ export default function TarefasPage() {
                     </div>
                   ) : (
                     items.map((tarefa) => (
-                      <TarefaCard key={tarefa.id} tarefa={tarefa} />
+                      <TarefaCard key={tarefa.id} tarefa={tarefa} onUpdate={updateTarefa} />
                     ))
                   )}
                 </div>

@@ -8,19 +8,24 @@ export type CriarTarefaDados = {
 }
 
 export type EditarTarefaDados = {
+  tarefa_id: number
+  notion_id: string | null
   titulo: string
   responsavel: string | null
   prazo: string | null
   status: string
 }
 
-export async function editarTarefa(id: number, dados: EditarTarefaDados): Promise<void> {
-  const { error } = await supabase
-    .from("tarefas")
-    .update(dados)
-    .eq("id", id)
-
-  if (error) throw new Error(error.message)
+export async function editarTarefa(dados: EditarTarefaDados): Promise<void> {
+  const response = await fetch(
+    "https://n8n-n8n-start.kfocge.easypanel.host/webhook/editar-tarefa",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dados),
+    }
+  )
+  if (!response.ok) throw new Error(`Erro ao salvar a tarefa (${response.status})`)
 }
 
 export async function criarTarefa(dados: CriarTarefaDados): Promise<void> {

@@ -12,9 +12,10 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
-import { UploadCloud, Video, CheckCircle2, AlertTriangle, Calendar, Users, ChevronDown, ChevronUp } from "lucide-react"
+import { UploadCloud, Video, CheckCircle2, AlertTriangle, Calendar, Users, ChevronDown, ChevronUp, Trash2, Pencil } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ClienteBanner } from "@/components/cliente-banner"
+import { supabase } from "@/hooks/useSupabase"
 
 export default function ReunioesPage() {
   const { fetchMeetings } = useSupabase()
@@ -24,6 +25,19 @@ export default function ReunioesPage() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [isProcessingFile, setIsProcessingFile] = useState(false)
+
+  // Delete state
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  // Edit state
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingMeeting, setEditingMeeting] = useState<any>(null)
+  const [editTitulo, setEditTitulo] = useState("")
+  const [editTipo, setEditTipo] = useState("")
+  const [editData, setEditData] = useState("")
+  const [editResumo, setEditResumo] = useState("")
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
 
   // Upload Form State
   const [transcript, setTranscript] = useState("")
@@ -140,6 +154,65 @@ export default function ReunioesPage() {
 
   const toggleExpand = (id: number) => {
     setExpandedId(expandedId === id ? null : id)
+  }
+
+  const handleDeleteMeeting = async () => {
+    if (!confirmDeleteId) return
+    setDeletingId(confirmDeleteId)
+    try {
+      const { error } = await supabase
+        .from('meeting_summaries')
+        .delete()
+        .eq('id', confirmDeleteId)
+      if (error) throw error
+      setMeetings(prev => prev.filter(m => m.id !== confirmDeleteId))
+      setConfirmDeleteId(null)
+      toast.success("Reunião excluída com sucesso.")
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao excluir a reunião.")
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const openEditDialog = (meeting: any) => {
+    setEditingMeeting(meeting)
+    setEditTitulo(meeting.titulo || "")
+    setEditTipo(meeting.tipo || "")
+    setEditData(
+      meeting.data_reuniao
+        ? new Date(meeting.data_reuniao).toISOString().split('T')[0]
+        : ""
+    )
+    setEditResumo(meeting.resumo_executivo || "")
+    setEditDialogOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingMeeting) return
+    setIsSavingEdit(true)
+    try {
+      const updates: any = {
+        titulo: editTitulo.trim(),
+        tipo: editTipo.trim(),
+        resumo_executivo: editResumo.trim(),
+      }
+      if (editData) updates.data_reuniao = editData
+      const { error } = await supabase
+        .from('meeting_summaries')
+        .update(updates)
+        .eq('id', editingMeeting.id)
+      if (error) throw error
+      setMeetings(prev =>
+        prev.map(m => m.id === editingMeeting.id ? { ...m, ...updates } : m)
+      )
+      setEditDialogOpen(false)
+      toast.success("Reunião atualizada com sucesso.")
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao atualizar a reunião.")
+    } finally {
+      setIsSavingEdit(false)
+    }
   }
 
   const getPriorityColor = (priority: string) => {
@@ -289,9 +362,29 @@ export default function ReunioesPage() {
                         {meeting.participantes && <span className="flex items-center"><Users className="mr-1 h-3 w-3" /> {meeting.participantes.length} participantes</span>}
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" className="w-8 h-8 p-0">
-                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </Button>
+                    <div className="flex items-center gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-8 h-8 p-0 text-muted-foreground hover:text-primary"
+                        onClick={(e) => { e.stopPropagation(); openEditDialog(meeting) }}
+                        title="Editar reunião"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-8 h-8 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(meeting.id) }}
+                        title="Excluir reunião"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="w-8 h-8 p-0">
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                    </div>
                   </div>
                   {!isExpanded && (
                     <CardDescription className="line-clamp-2 mt-2 text-base text-foreground/80">
@@ -468,6 +561,102 @@ export default function ReunioesPage() {
           })}
         </div>
       )}
+      {/* ── Diálogo de confirmação de exclusão ────────────────────────── */}
+      <Dialog open={confirmDeleteId !== null} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null) }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Excluir Reunião
+            </DialogTitle>
+            <DialogDescription>
+              Esta ação é irreversível. A reunião será removida permanentemente do banco de dados.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDeleteId(null)}
+              disabled={deletingId !== null}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteMeeting}
+              disabled={deletingId !== null}
+            >
+              {deletingId !== null ? "Excluindo..." : "Sim, excluir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Diálogo de edição ─────────────────────────────────────────── */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Editar Reunião
+            </DialogTitle>
+            <DialogDescription>
+              Atualize as informações principais. Os action items e decisões permanecem intactos.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-titulo">Título</Label>
+              <Input
+                id="edit-titulo"
+                value={editTitulo}
+                onChange={e => setEditTitulo(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-tipo">Tipo</Label>
+                <Input
+                  id="edit-tipo"
+                  placeholder="Ex: Sync, Estratégia..."
+                  value={editTipo}
+                  onChange={e => setEditTipo(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-data">Data da Reunião</Label>
+                <Input
+                  id="edit-data"
+                  type="date"
+                  value={editData}
+                  onChange={e => setEditData(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-resumo">Resumo Executivo</Label>
+              <Textarea
+                id="edit-resumo"
+                className="min-h-[120px]"
+                value={editResumo}
+                onChange={e => setEditResumo(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditDialogOpen(false)}
+              disabled={isSavingEdit}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={isSavingEdit}>
+              {isSavingEdit ? "Salvando..." : "Salvar Alterações"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -11,6 +11,8 @@ export type Tarefa = {
   responsavel: string | null
   prazo: string | null
   status: TarefaStatus
+  origem?: "notion" | "frontend" | null
+  notion_id?: string | null
   created_at?: string
   updated_at?: string
   criado_em?: string
@@ -82,5 +84,9 @@ export function useTarefas() {
     }
   }, [])
 
-  return { tarefas, loading, erro }
+  const updateTarefa = (id: number, updates: Partial<Tarefa>) => {
+    setTarefas((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+  }
+
+  return { tarefas, loading, erro, updateTarefa }
 }
