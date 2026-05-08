@@ -4,6 +4,8 @@ const nextConfig = {
 
   // Reduce bundle size by only importing what's used from these packages
   experimental: {
+    // Exclude CommonJS-only packages from webpack bundling (let Node.js require them natively)
+    serverComponentsExternalPackages: ["pdf-parse"],
     optimizePackageImports: [
       "lucide-react",
       "@radix-ui/react-dialog",
