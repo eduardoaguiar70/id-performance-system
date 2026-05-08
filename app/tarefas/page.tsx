@@ -410,16 +410,6 @@ export default function TarefasPage() {
             {isSyncing ? "Sincronizando..." : "Sincronizar Notion"}
           </Button>
 
-          {/* Gerar Insights */}
-          <Button
-            variant="outline"
-            onClick={handleGerarInsights}
-            disabled={isLoadingInsights || tarefas.length === 0}
-          >
-            <Sparkles className="mr-2 h-4 w-4" />
-            {isLoadingInsights ? "Gerando..." : "🤖 Gerar Insights"}
-          </Button>
-
           {/* Nova Tarefa */}
           <Dialog
             open={novaTarefaOpen}

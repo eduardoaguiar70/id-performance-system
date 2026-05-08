@@ -67,6 +67,10 @@ export function ClienteSelector() {
       <Select
         value={clienteSelecionado?.conta_id || ""}
         onValueChange={(value) => {
+          if (value === "__none__") {
+            setClienteSelecionado(null)
+            return
+          }
           const cliente = clientes.find((c) => c.conta_id === value)
           setClienteSelecionado(cliente || null)
         }}
@@ -75,6 +79,7 @@ export function ClienteSelector() {
           <SelectValue placeholder="Selecionar cliente..." />
         </SelectTrigger>
         <SelectContent>
+          <SelectItem value="__none__">Nenhum Cliente</SelectItem>
           {clientes.map((cliente) => (
             <SelectItem key={cliente.conta_id} value={cliente.conta_id}>
               {cliente.conta_nome}
