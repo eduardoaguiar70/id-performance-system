@@ -17,6 +17,7 @@ import {
   LogOut,
   Building2,
   Heart,
+  Settings,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -82,6 +83,12 @@ const groups: NavGroup[] = [
     label: "Utilidades",
     items: [
       { name: "Criativos", href: "/criativos", icon: ImageIcon },
+    ],
+  },
+  {
+    label: "Configurações",
+    items: [
+      { name: "Integrações", href: "/integracoes", icon: Settings },
     ],
   },
 ]

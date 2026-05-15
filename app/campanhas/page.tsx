@@ -8,6 +8,7 @@ import {
   Percent, Eye, RefreshCw, CalendarRange, X
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -149,6 +150,10 @@ export default function CampanhasPage() {
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [consultando, setConsultando] = useState(false)
 
+  const [integracoes, setIntegracoes] = useState({ meta: false, google: false })
+  const [activeTab, setActiveTab] = useState<"meta" | "google">("meta")
+
+
   // Derived strings
   const dateStart = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : ""
   const dateEnd   = dateRange?.to   ? format(dateRange.to,   "yyyy-MM-dd") : ""
@@ -166,7 +171,7 @@ export default function CampanhasPage() {
   // ---------------------------------------------------------------------------
   // Fetch + aggregate campaigns
   // ---------------------------------------------------------------------------
-  const fetchCampanhas = async (start: string, end: string) => {
+  const fetchCampanhas = async (start: string, end: string, platform: "meta" | "google" = activeTab) => {
     if (!clienteSelecionado || !start || !end) return
 
     setLoadingCampanhas(true)
@@ -176,8 +181,9 @@ export default function CampanhasPage() {
     setCampanhas([])
 
     try {
+      const table = platform === "meta" ? "campaign_snapshots" : "google_campaign_snapshots"
       const { data, error: dbErr } = await supabase
-        .from("campaign_snapshots")
+        .from(table)
         .select("*")
         .eq("conta_nome", clienteSelecionado.conta_nome)
         .gte("periodo_inicio", start)
@@ -189,9 +195,9 @@ export default function CampanhasPage() {
       setCampanhas(aggregated)
 
       if (aggregated.length === 0) {
-        toast.info("Nenhuma campanha encontrada para o período selecionado.")
+        toast.info(`Nenhuma campanha ${platform} encontrada para o período.`)
       } else {
-        toast.success(`${aggregated.length} campanha(s) agregada(s) no período.`)
+        toast.success(`${aggregated.length} campanha(s) ${platform} agregada(s).`)
       }
     } catch (err: any) {
       console.error("Erro ao buscar campanhas:", err)
@@ -211,7 +217,7 @@ export default function CampanhasPage() {
     if (diff > 90) { toast.error("O período máximo é de 90 dias."); return }
 
     setConsultando(true)
-    await fetchCampanhas(dateStart, dateEnd)
+    await fetchCampanhas(dateStart, dateEnd, activeTab)
     setConsultando(false)
   }
 
@@ -231,8 +237,31 @@ export default function CampanhasPage() {
       setLoadingCampanhas(true)
 
       try {
+        // Detect Integrations
+        const { data: clienteData, error: clienteErr } = await supabase
+          .from('clientes')
+          .select('meta_ads_id, google_ads_id')
+          .eq('conta_id', clienteSelecionado!.conta_id)
+          .single();
+        
+        let hasMeta = false;
+        let hasGoogle = false;
+        if (!clienteErr && clienteData) {
+          hasMeta = !!clienteData.meta_ads_id;
+          hasGoogle = !!clienteData.google_ads_id;
+          setIntegracoes({ meta: hasMeta, google: hasGoogle });
+        } else {
+          // Default to Meta if error or not found just in case
+          hasMeta = true;
+          setIntegracoes({ meta: true, google: false });
+        }
+
+        const initialTab = hasMeta ? "meta" : (hasGoogle ? "google" : "meta");
+        setActiveTab(initialTab);
+
+        const table = initialTab === "meta" ? "campaign_snapshots" : "google_campaign_snapshots"
         const { data: latestRows, error: latestErr } = await supabase
-          .from("campaign_snapshots")
+          .from(table)
           .select("periodo_inicio")
           .eq("conta_nome", clienteSelecionado.conta_nome)
           .order("periodo_inicio", { ascending: false })
@@ -259,7 +288,7 @@ export default function CampanhasPage() {
           endStr = format(toDate, "yyyy-MM-dd")
         }
 
-        await fetchCampanhas(startStr, endStr)
+        await fetchCampanhas(startStr, endStr, initialTab)
       } catch (err) {
         console.error("Erro ao buscar data inicial:", err)
         setError("Erro ao determinar o período mais recente.")
@@ -281,8 +310,9 @@ export default function CampanhasPage() {
       setLoadingAds(true)
       setAds([])
       try {
+        const table = activeTab === "meta" ? "ad_snapshots" : "google_ad_snapshots"
         const { data, error: dbErr } = await supabase
-          .from("ad_snapshots")
+          .from(table)
           .select("*")
           .eq("conta_nome", clienteSelecionado!.conta_nome)
           .eq("campaign_name", selectedCampaign)
@@ -393,6 +423,7 @@ export default function CampanhasPage() {
         </div>
       </div>
 
+      
       {/* Active period badge */}
       {dateStart && dateEnd && (
         <p className="text-xs text-muted-foreground -mt-2 mb-2">
@@ -402,6 +433,16 @@ export default function CampanhasPage() {
           <span className="font-medium text-foreground">{format(new Date(dateEnd + "T12:00:00"), "dd/MM/yyyy")}</span>
         </p>
       )}
+
+      {(integracoes.meta && integracoes.google) && (
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as any); fetchCampanhas(dateStart, dateEnd, v as any) }} className="mb-6">
+          <TabsList>
+            <TabsTrigger value="meta">Meta Ads</TabsTrigger>
+            <TabsTrigger value="google">Google Ads</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
+
 
       {/* Error */}
       {error && (

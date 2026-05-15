@@ -27,53 +27,64 @@ const fmtInt = (v: any) => new Intl.NumberFormat('pt-BR').format(Number(v) || 0)
 const fmtFreq = (v: any) => `${(Number(v) || 0).toFixed(2)}x`
 
 // --- Aggregates multiple daily rows into one synthetic snapshot ---
-function aggregateRows(rows: any[]): any | null {
-  if (!rows || rows.length === 0) return null
-  if (rows.length === 1) {
-    const r = { ...rows[0] }
-    if (r.compras === undefined) {
-      r.compras = r.cac > 0 ? Math.round((r.investimento_total || 0) / r.cac) : 0
-    }
-    return r
-  }
-  const sum = (key: string) => rows.reduce((acc, r) => acc + (Number(r[key]) || 0), 0)
-  const avg = (key: string) => sum(key) / rows.length
-  const investimento  = sum('investimento_total')
-  const receita       = sum('receita_atribuida')
-  // If 'compras' is missing from rows, calculate it individually per row
-  const sumCompras = rows.reduce((acc, r) => {
-    let c = Number(r['compras'])
-    if (isNaN(c)) {
-      c = (Number(r.cac) > 0) ? Math.round((Number(r.investimento_total) || 0) / Number(r.cac)) : 0
-    }
-    return acc + c
-  }, 0)
+function aggregateHybridRows(rowsMeta: any[], rowsGoogle: any[]): any | null {
+  if ((!rowsMeta || rowsMeta.length === 0) && (!rowsGoogle || rowsGoogle.length === 0)) return null;
 
-  const compras       = sumCompras
-  const impressoes    = sum('impressoes')
-  const cliques       = sum('cliques')
-  const leads         = sum('leads_gerados')
-  const add_to_cart   = sum('add_to_cart')
-  const init_checkout = sum('initiate_checkout')
-  const roas     = investimento > 0 ? receita / investimento : 0
-  const cac      = compras > 0 ? investimento / compras : 0
-  const cpl      = leads > 0 ? investimento / leads : 0
-  const cpm      = impressoes > 0 ? (investimento / impressoes) * 1000 : 0
-  const cpc      = cliques > 0 ? investimento / cliques : 0
-  const ctr      = impressoes > 0 ? (cliques / impressoes) * 100 : 0
-  const taxa_conv = cliques > 0 ? (compras / cliques) * 100 : 0
-  const reach    = avg('reach')
-  const frequency = avg('frequency')
+  const sum = (arr: any[], key: string) => arr.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+  const avg = (arr: any[], key: string) => arr.length > 0 ? sum(arr, key) / arr.length : 0;
+
+  const sumComprasMeta = rowsMeta.reduce((acc, r) => {
+    let c = Number(r['compras']);
+    if (isNaN(c)) c = (Number(r.cac) > 0) ? Math.round((Number(r.investimento_total) || 0) / Number(r.cac)) : 0;
+    return acc + c;
+  }, 0);
+
+  // Meta
+  const metaInvestimento = sum(rowsMeta, 'investimento_total');
+  const metaReceita = sum(rowsMeta, 'receita_atribuida');
+  const metaCompras = sumComprasMeta;
+  const metaImpressoes = sum(rowsMeta, 'impressoes');
+  const metaCliques = sum(rowsMeta, 'cliques');
+  const metaLeads = sum(rowsMeta, 'leads_gerados');
+
+  // Google
+  const googleInvestimento = sum(rowsGoogle, 'spend');
+  const googleReceita = sum(rowsGoogle, 'receita');
+  const googleCompras = sum(rowsGoogle, 'compras');
+  const googleImpressoes = sum(rowsGoogle, 'impressoes');
+  const googleCliques = sum(rowsGoogle, 'cliques');
+  const googleLeads = sum(rowsGoogle, 'leads');
+
+  // Hybrid
+  const investimento_total = metaInvestimento + googleInvestimento;
+  const receita_atribuida = metaReceita + googleReceita;
+  const compras = metaCompras + googleCompras;
+  const impressoes = metaImpressoes + googleImpressoes;
+  const cliques = metaCliques + googleCliques;
+  const leads_gerados = metaLeads + googleLeads;
+
+  const roas = investimento_total > 0 ? receita_atribuida / investimento_total : 0;
+  const cac = compras > 0 ? investimento_total / compras : 0;
+  const cpl = leads_gerados > 0 ? investimento_total / leads_gerados : 0;
+  const cpm = impressoes > 0 ? (investimento_total / impressoes) * 1000 : 0;
+  const cpc = cliques > 0 ? investimento_total / cliques : 0;
+  const ctr = impressoes > 0 ? (cliques / impressoes) * 100 : 0;
+  const taxa_conversao = cliques > 0 ? (compras / cliques) * 100 : 0;
+  const reach = avg(rowsMeta, 'reach');
+  const frequency = avg(rowsMeta, 'frequency');
+
   return {
-    ...rows[0],
-    investimento_total: investimento, receita_atribuida: receita, compras,
-    impressoes, cliques, leads_gerados: leads, add_to_cart,
-    initiate_checkout: init_checkout, roas, cac, cpl, cpm, cpc, ctr,
-    taxa_conversao: taxa_conv, reach, frequency,
-    roas_anterior: undefined, cac_anterior: undefined, cpl_anterior: undefined,
-    taxa_conversao_anterior: undefined, leads_gerados_anterior: undefined,
-    ctr_anterior: undefined, investimento_total_anterior: undefined,
-  }
+    investimento_total, receita_atribuida, compras,
+    impressoes, cliques, leads_gerados,
+    roas, cac, cpl, cpm, cpc, ctr, taxa_conversao,
+    reach, frequency,
+    add_to_cart: sum(rowsMeta, 'add_to_cart'),
+    initiate_checkout: sum(rowsMeta, 'initiate_checkout'),
+    meta_spend: metaInvestimento,
+    google_spend: googleInvestimento,
+    ...(rowsMeta[0] || {}),
+    ...(rowsGoogle[0] || {})
+  };
 }
 
 
@@ -89,6 +100,7 @@ export default function KPIsPage() {
   const [atualizando, setAtualizando] = useState(false)
   const [importando, setImportando] = useState(false)
   const [gerandoIA, setGerandoIA] = useState(false)
+  const [integracoes, setIntegracoes] = useState({ meta: false, google: false })
 
   // Modal de seleção de período para análise IA
   const [analiseModalOpen, setAnaliseModalOpen] = useState(false)
@@ -148,7 +160,7 @@ export default function KPIsPage() {
         .eq('conta_nome', clienteSelecionado.conta_nome)
         .order('periodo_inicio', { ascending: false })
         .limit(30)
-      setSnapshot(aggregateRows(data || []))
+      setSnapshot(aggregateHybridRows(data || [], []))
     } catch {
       toast.error("Erro ao importar histórico. Tente novamente.", { id: toastId })
     } finally {
@@ -217,7 +229,7 @@ export default function KPIsPage() {
 
   const handleConsultarPeriodo = async () => {
     if (!clienteSelecionado) { toast.error("Selecione um cliente."); return }
-    if (!dateRange?.from || !dateRange?.to) { toast.error("Selecione um período no calendÃ¡rio."); return }
+    if (!dateRange?.from || !dateRange?.to) { toast.error("Selecione um período no calendário."); return }
     const diff = differenceInDays(dateRange.to, dateRange.from)
     if (diff > 90) { toast.error("O período máximo é de 90 dias."); return }
     setConsultando(true)
@@ -230,18 +242,24 @@ export default function KPIsPage() {
         body: JSON.stringify({ conta_id: clienteSelecionado.conta_id, date_start: dateStart, date_end: dateEnd })
       })
       await new Promise(r => setTimeout(r, 3000))
-      // Fetch ALL daily rows in range â€” no .limit(1).single()
-      const { data, error: dbErr } = await supabase
-        .from('kpi_snapshots')
-        .select('*')
-        .eq('conta_nome', clienteSelecionado.conta_nome)
-        .gte('periodo_inicio', dateStart)
-        .lte('periodo_inicio', dateEnd)
-        .order('periodo_inicio', { ascending: false })
-      if (dbErr) throw dbErr
-      setSnapshot(aggregateRows(data || []))
+      
+      const fetchPromises: Promise<any>[] = [];
+      if (integracoes.meta) {
+        fetchPromises.push(supabase.from('kpi_snapshots').select('*').eq('conta_nome', clienteSelecionado.conta_nome).gte('periodo_inicio', dateStart).lte('periodo_inicio', dateEnd));
+      } else fetchPromises.push(Promise.resolve({ data: [] }));
+
+      if (integracoes.google) {
+        fetchPromises.push(supabase.from('google_ads_snapshots').select('*').eq('conta_nome', clienteSelecionado.conta_nome).gte('periodo_inicio', dateStart).lte('periodo_inicio', dateEnd));
+      } else fetchPromises.push(Promise.resolve({ data: [] }));
+
+      const [metaRes, googleRes] = await Promise.all(fetchPromises);
+      if (metaRes.error) throw metaRes.error;
+      if (googleRes.error) throw googleRes.error;
+
+      const totalRows = (metaRes.data?.length || 0) + (googleRes.data?.length || 0);
+      setSnapshot(aggregateHybridRows(metaRes.data || [], googleRes.data || []));
       setDateFilterActive(true)
-      toast.success(`Período agregado: ${(data || []).length} dia(s).`, { id: toastId })
+      toast.success(`Período agregado: ${totalRows} resumos diários.`, { id: toastId })
     } catch {
       toast.error("Erro ao consultar período. Tente novamente.", { id: toastId })
     } finally {
@@ -258,18 +276,32 @@ export default function KPIsPage() {
 
   useEffect(() => {
     async function loadData() {
-      // FIX 1: Reset imediato — apaga dados do cliente anterior antes de qualquer fetch
       setSnapshot(null)
       setAnaliseIA(null)
       setHistory([])
       setLoading(true)
       setError(null)
+      setIntegracoes({ meta: false, google: false })
 
       try {
+        // Detecção de Integração
+        const { data: clienteData, error: clienteErr } = await supabase
+          .from('clientes')
+          .select('meta_ads_id, google_ads_id')
+          .eq('id', clienteSelecionado!.id) // Fixed to id based on earlier schema analysis
+          .single();
+        
+        let hasMeta = true;
+        let hasGoogle = true;
+        if (!clienteErr && clienteData) {
+          hasMeta = !!clienteData.meta_ads_id;
+          hasGoogle = !!clienteData.google_ads_id;
+          setIntegracoes({ meta: hasMeta, google: hasGoogle });
+        }
+
         let startStr: string
         let endStr: string
 
-        // FIX 2: Se há filtro de data ativo, usa as datas do calendário mesmo ao trocar de cliente
         if (dateFilterActive && dateStart && dateEnd) {
           startStr = dateStart
           endStr = dateEnd
@@ -284,19 +316,34 @@ export default function KPIsPage() {
           startStr = startDate.toISOString().split('T')[0]
         }
 
-        // Fetch ALL daily rows in the period
-        const { data: rows, error: fetchError } = await supabase
-          .from('kpi_snapshots')
-          .select('*')
-          .eq('conta_nome', clienteSelecionado!.conta_nome)
-          .gte('periodo_inicio', startStr)
-          .lte('periodo_inicio', endStr)
-          .order('periodo_inicio', { ascending: false })
-        if (fetchError) throw fetchError
+        const fetchPromises: Promise<any>[] = [];
+        
+        if (hasMeta) {
+          fetchPromises.push(
+            supabase.from('kpi_snapshots')
+              .select('*')
+              .eq('conta_nome', clienteSelecionado!.conta_nome)
+              .gte('periodo_inicio', startStr)
+              .lte('periodo_inicio', endStr)
+          );
+        } else fetchPromises.push(Promise.resolve({ data: [] }));
 
-        // FIX 3: Array vazio → aggregateRows retorna null → Empty State renderiza corretamente
-        const aggregated = aggregateRows(rows || [])
-        setSnapshot(aggregated)
+        if (hasGoogle) {
+          fetchPromises.push(
+            supabase.from('google_ads_snapshots')
+              .select('*')
+              .eq('conta_nome', clienteSelecionado!.conta_nome)
+              .gte('periodo_inicio', startStr)
+              .lte('periodo_inicio', endStr)
+          );
+        } else fetchPromises.push(Promise.resolve({ data: [] }));
+
+        const [metaRes, googleRes] = await Promise.all(fetchPromises);
+        if (metaRes.error) throw metaRes.error;
+        if (googleRes.error) throw googleRes.error;
+
+        const aggregated = aggregateHybridRows(metaRes.data || [], googleRes.data || []);
+        setSnapshot(aggregated);
 
         const aiData = await fetchLatestKpiAnalysis(clienteSelecionado!.conta_nome)
         setAnaliseIA(aiData)
@@ -311,7 +358,7 @@ export default function KPIsPage() {
         setHistory(formattedHistory)
       } catch (err: any) {
         console.error("Error fetching KPIs:", err)
-        setSnapshot(null) // garante Empty State em caso de erro também
+        setSnapshot(null)
         setError("Erro ao carregar dados de KPIs.")
         toast.error("Não foi possível carregar os KPIs.")
       } finally {
@@ -854,6 +901,47 @@ export default function KPIsPage() {
                   <span className="ml-2 text-sm">{alerta.mensagem}</span>
                 </div>
               ))}
+            </CardContent>
+          </Card>
+        )}
+
+        
+        {/* --- Market Share de Investimento --- */}
+        {(snapshot.meta_spend > 0 || snapshot.google_spend > 0) && (
+          <Card className="mt-4 border-primary/20 bg-card overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground/80 uppercase tracking-widest">
+                <DollarSign className="h-4 w-4 text-primary" />
+                Market Share de Investimento
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between text-xs font-semibold">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-blue-500 block"></span>
+                    <span className="text-blue-500">Meta Ads (R$ {(snapshot.meta_spend || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-orange-500">Google Ads (R$ {(snapshot.google_spend || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>
+                    <span className="w-3 h-3 rounded-full bg-orange-500 block"></span>
+                  </div>
+                </div>
+                <div className="w-full h-3 rounded-full overflow-hidden flex bg-muted mt-1">
+                  <div 
+                    className="h-full bg-blue-500 transition-all duration-1000" 
+                    style={{ width: `${((snapshot.meta_spend || 0) / (snapshot.investimento_total || 1)) * 100}%` }}
+                  />
+                  <div 
+                    className="h-full bg-orange-500 transition-all duration-1000" 
+                    style={{ width: `${((snapshot.google_spend || 0) / (snapshot.investimento_total || 1)) * 100}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
+                  <span>{(((snapshot.meta_spend || 0) / (snapshot.investimento_total || 1)) * 100).toFixed(1)}%</span>
+                  <span>{(((snapshot.google_spend || 0) / (snapshot.investimento_total || 1)) * 100).toFixed(1)}%</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}

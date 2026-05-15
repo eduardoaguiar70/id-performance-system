@@ -15,9 +15,10 @@ import {
   MessageCircle, Target, Megaphone, BarChart2,
   TrendingUp, CalendarDays, TrendingDown, Minus,
   Pencil, Check, X, StickyNote, DollarSign,
-  MousePointerClick, ShoppingCart, Zap,
+  MousePointerClick, ShoppingCart, Zap, BellRing
 } from "lucide-react"
 import Link from "next/link"
+import { AlertasConfig } from "@/components/clientes/alertas-config"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { toast } from "sonner"
@@ -624,6 +625,13 @@ export default function ClienteProfilePage() {
             ) : (
               feedbacks.map((fb) => <FeedbackCard key={fb.id} feedback={fb} />)
             )}
+          </div>
+        </div>
+        {/* ── Configurações de Alertas ──────────────────────────────────────── */}
+        <div className="border border-border bg-card" style={{ borderRadius: "2px" }}>
+          <SectionHeader icon={BellRing} label="Configurações de Alertas Ativos" />
+          <div className="p-4">
+            <AlertasConfig clienteId={id} />
           </div>
         </div>
 
