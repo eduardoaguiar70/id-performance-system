@@ -69,7 +69,8 @@ export function AlertasConfig({ clienteId, cpaAtualMeta: cpaMetaProp, cpaAtualGo
         ])
 
         if (metaRes.status === "fulfilled") {
-          const row = (metaRes.value as any).data
+          const value = metaRes.value as { data: { cac: number | string | null; investimento_total: number | string | null; leads_gerados: number | null } | null };
+          const row = value?.data;
           if (row?.cac != null) {
             setCpaGlobalMeta(Number(row.cac))
           } else if (row?.investimento_total != null && row?.leads_gerados != null && row.leads_gerados > 0) {
@@ -78,7 +79,8 @@ export function AlertasConfig({ clienteId, cpaAtualMeta: cpaMetaProp, cpaAtualGo
         }
 
         if (googleRes.status === "fulfilled") {
-          const row = (googleRes.value as any).data
+          const value = googleRes.value as { data: { spend: number | string | null; conversions: number | string | null } | null };
+          const row = value?.data;
           if (row?.spend != null && row?.conversions != null) {
             const s = Number(row.spend)
             const c = Number(row.conversions)
@@ -181,9 +183,10 @@ export function AlertasConfig({ clienteId, cpaAtualMeta: cpaMetaProp, cpaAtualGo
 
       setHasData(true)
       toast.success("Configurações salvas com sucesso!", { id: toastId })
-    } catch (err: any) {
+    } catch (err) {
       console.error("Erro ao salvar alertas:", err)
-      toast.error(err.message || "Erro ao salvar as configurações.", { id: toastId })
+      const errMsg = err instanceof Error ? err.message : "Erro ao salvar as configurações."
+      toast.error(errMsg, { id: toastId })
     } finally {
       setSaving(false)
     }
