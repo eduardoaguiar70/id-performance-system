@@ -61,11 +61,11 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
     className: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   },
   error: {
-    label: "Erro Inválido",
+    label: "Erro: Número Inválido",
     className: "bg-red-500/10 text-red-400 border-red-500/20",
   },
   erro: {
-    label: "Erro Inválido",
+    label: "Erro: Número Inválido",
     className: "bg-red-500/10 text-red-400 border-red-500/20",
   },
 }
