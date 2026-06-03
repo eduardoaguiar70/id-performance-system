@@ -243,7 +243,7 @@ export default function KPIsPage() {
       })
       await new Promise(r => setTimeout(r, 3000))
       
-      const fetchPromises: Promise<any>[] = [];
+      const fetchPromises: any[] = [];
       if (integracoes.meta) {
         fetchPromises.push(supabase.from('kpi_snapshots').select('*').eq('conta_nome', clienteSelecionado.conta_nome).gte('periodo_inicio', dateStart).lte('periodo_inicio', dateEnd));
       } else fetchPromises.push(Promise.resolve({ data: [] }));
@@ -288,7 +288,7 @@ export default function KPIsPage() {
         const { data: clienteData, error: clienteErr } = await supabase
           .from('clientes')
           .select('meta_ads_id, google_ads_id')
-          .eq('id', clienteSelecionado!.id) // Fixed to id based on earlier schema analysis
+          .eq('id', (clienteSelecionado as any).id) // Fixed to id based on earlier schema analysis
           .single();
         
         let hasMeta = true;
@@ -316,7 +316,7 @@ export default function KPIsPage() {
           startStr = startDate.toISOString().split('T')[0]
         }
 
-        const fetchPromises: Promise<any>[] = [];
+        const fetchPromises: any[] = [];
         
         if (hasMeta) {
           fetchPromises.push(

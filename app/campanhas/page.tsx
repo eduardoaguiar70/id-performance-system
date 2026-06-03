@@ -161,6 +161,7 @@ export default function CampanhasPage() {
   // Data state
   const [campanhas, setCampanhas] = useState<AggregatedCampaign[]>([])
   const [loadingCampanhas, setLoadingCampanhas] = useState(false)
+  const [alertasConfig, setAlertasConfig] = useState<any>(null)
 
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
   const [ads, setAds] = useState<AggregatedAd[]>([])
@@ -240,7 +241,7 @@ export default function CampanhasPage() {
         // Detect Integrations
         const { data: clienteData, error: clienteErr } = await supabase
           .from('clientes')
-          .select('meta_ads_id, google_ads_id')
+          .select('id, meta_ads_id, google_ads_id')
           .eq('conta_id', clienteSelecionado!.conta_id)
           .single();
         
@@ -250,6 +251,13 @@ export default function CampanhasPage() {
           hasMeta = !!clienteData.meta_ads_id;
           hasGoogle = !!clienteData.google_ads_id;
           setIntegracoes({ meta: hasMeta, google: hasGoogle });
+
+          const { data: alertasData } = await supabase
+            .from('configuracoes_alertas')
+            .select('*')
+            .eq('cliente_id', clienteData.id)
+            .maybeSingle();
+          setAlertasConfig(alertasData);
         } else {
           // Default to Meta if error or not found just in case
           hasMeta = true;
@@ -466,52 +474,60 @@ export default function CampanhasPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {campanhas.map((campanha, idx) => (
-            <Card
-              key={idx}
-              className={`cursor-pointer transition-all hover:border-primary/50 ${selectedCampaign === campanha.campaign_name ? 'border-primary ring-1 ring-primary' : ''}`}
-              onClick={() => setSelectedCampaign(campanha.campaign_name)}
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base line-clamp-2" title={campanha.campaign_name}>
-                  {campanha.campaign_name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-y-4 gap-x-2 mt-2">
-                  <div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="h-3 w-3" /> Spend</p>
-                    <p className="font-semibold text-sm">{fmtBRL(campanha.spend)}</p>
+          {campanhas.map((campanha, idx) => {
+            const limiteCpa = activeTab === "meta" ? alertasConfig?.meta_cpa_maximo : alertasConfig?.google_cpa_maximo;
+            const cpaOverLimit = limiteCpa != null && campanha.cac > limiteCpa;
+
+            return (
+              <Card
+                key={idx}
+                className={`cursor-pointer transition-all hover:border-primary/50 ${selectedCampaign === campanha.campaign_name ? 'border-primary ring-1 ring-primary' : ''}`}
+                onClick={() => setSelectedCampaign(campanha.campaign_name)}
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base line-clamp-2" title={campanha.campaign_name}>
+                    {campanha.campaign_name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-2 mt-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="h-3 w-3" /> Spend</p>
+                      <p className="font-semibold text-sm">{fmtBRL(campanha.spend)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Receita</p>
+                      <p className="font-semibold text-sm text-green-600 dark:text-green-400">{fmtBRL(campanha.receita)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1"><Target className="h-3 w-3" /> ROAS</p>
+                      <Badge
+                        variant={campanha.roas > 2 ? 'default' : 'secondary'}
+                        className={campanha.roas > 5 ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
+                      >
+                        {campanha.roas.toFixed(2)}x
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="h-3 w-3" /> CPA</p>
+                      <p className={`font-semibold text-sm ${cpaOverLimit ? 'text-red-500' : ''}`}>
+                        {campanha.cac === 0 ? "R$ 0,00" : fmtBRL(campanha.cac)}
+                        {cpaOverLimit && <span title={`Acima do limite de ${fmtBRL(limiteCpa)}`}><AlertTriangle className="h-3 w-3 inline ml-1 text-red-500" /></span>}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1"><ShoppingCart className="h-3 w-3" /> Compras</p>
+                      <p className="font-semibold text-sm">{fmtInt(campanha.compras)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1"><Percent className="h-3 w-3" /> CTR</p>
+                      <p className="font-semibold text-sm">{campanha.ctr.toFixed(2)}%</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Receita</p>
-                    <p className="font-semibold text-sm text-green-600 dark:text-green-400">{fmtBRL(campanha.receita)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1"><Target className="h-3 w-3" /> ROAS</p>
-                    <Badge
-                      variant={campanha.roas > 2 ? 'default' : 'secondary'}
-                      className={campanha.roas > 5 ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
-                    >
-                      {campanha.roas.toFixed(2)}x
-                    </Badge>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1"><ShoppingCart className="h-3 w-3" /> Compras</p>
-                    <p className="font-semibold text-sm">{fmtInt(campanha.compras)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1"><Percent className="h-3 w-3" /> CTR</p>
-                    <p className="font-semibold text-sm">{campanha.ctr.toFixed(2)}%</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Impressões</p>
-                    <p className="font-semibold text-sm">{fmtInt(campanha.impressoes)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
 
@@ -537,6 +553,8 @@ export default function CampanhasPage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {ads.map((ad, idx) => {
+                const limiteCpa = activeTab === "meta" ? alertasConfig?.meta_cpa_maximo : alertasConfig?.google_cpa_maximo;
+                const isCpaRed = limiteCpa != null && ad.cac > limiteCpa;
                 const isGreen = ad.roas > 5
                 const isRed   = ad.roas < 2 && ad.spend > 0
                 const cardClass = isGreen
@@ -573,6 +591,13 @@ export default function CampanhasPage() {
                           }`}>
                             {ad.roas.toFixed(2)}x
                           </span>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase text-muted-foreground">CPA</p>
+                          <p className={`font-semibold text-sm ${isCpaRed ? 'text-red-500' : ''}`}>
+                            {ad.cac === 0 ? "R$ 0,00" : fmtBRL(ad.cac)}
+                            {isCpaRed && <span title={`Acima do limite de ${fmtBRL(limiteCpa)}`}><AlertTriangle className="h-3 w-3 inline ml-1 text-red-500" /></span>}
+                          </p>
                         </div>
                         <div>
                           <p className="text-[10px] uppercase text-muted-foreground">Compras / Impr.</p>

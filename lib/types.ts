@@ -2,7 +2,7 @@
 // Tipos da plataforma ID Performance
 // ============================================================
 
-export type LeadStatus = "pending" | "approved" | "rejected" | "approached"
+export type LeadStatus = "pending" | "approved" | "rejected" | "approached" | "error"
 
 /**
  * Representa um lead scraped do Instagram pelo WF1 (n8n)
@@ -22,6 +22,7 @@ export interface Lead {
   qualificacao?: string | null   // gerado pelo Agente SDR (WF3): ALTA | MEDIA | BAIXA
   approached: boolean
   approached_at: string | null
+  erro_msg?: string | null
   selected: boolean
   selected_at: string | null
   scraped_at: string

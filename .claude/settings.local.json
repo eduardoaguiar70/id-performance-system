@@ -16,7 +16,24 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\" -Recurse -Force)",
       "Bash(Select-Object FullName)",
       "Bash(Copy-Item *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git remote *)",
+      "Bash(npx next *)",
+      "Bash(git fetch *)",
+      "Bash(git commit *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\" -Force)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(timeout 10 grep -r \"meeting_summaries\\\\|from.*meeting\" --include=\"*.ts\" --include=\"*.tsx\" .)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\" -Recurse -ErrorAction SilentlyContinue)",
+      "Bash(findstr /R \"ClienteSelector\" app\\\\*.tsx app\\\\*\\\\*.tsx)",
+      "Bash(findstr /R /S \"cliente-selector\\\\|ClienteSelector\" .)",
+      "Bash(git -C \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\" status)",
+      "Bash(git -C \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\" diff)",
+      "Bash(git -C \"C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01\" add app/tarefas/page.tsx components/cliente-selector.tsx)",
+      "Bash(git -C 'C:\\\\Users\\\\mcdud\\\\OneDrive\\\\Ambiente de Trabalho\\\\Sistema_ID_Performance-01' commit -m ' *)",
+      "Bash(git *)"
     ]
   }
 }

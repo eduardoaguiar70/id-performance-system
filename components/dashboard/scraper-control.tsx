@@ -79,6 +79,33 @@ function getStatusCfg(log: any) {
 }
 
 // ---------------------------------------------------------------------------
+// Componente de Mensagem de Erro Expansível
+// ---------------------------------------------------------------------------
+function ErrorMessage({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false)
+  if (!text) return null
+  const isLong = text.length > 80
+
+  return (
+    <p
+      className={`text-[10px] text-red-400 font-mono mt-1 transition-all ${
+        isLong && !expanded ? "line-clamp-1" : "break-words whitespace-normal"
+      } ${isLong ? "cursor-pointer hover:opacity-80" : ""}`}
+      onClick={(e) => {
+        if (isLong) {
+          e.preventDefault()
+          e.stopPropagation()
+          setExpanded((prev) => !prev)
+        }
+      }}
+      title={isLong && !expanded ? text : undefined}
+    >
+      {text}
+    </p>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 export function ScraperControl() {
@@ -324,14 +351,12 @@ export function ScraperControl() {
                         </span>
                       </div>
                       {effectiveStatus === "erro_timeout" && (
-                        <p className="text-[10px] text-red-400 mt-1 line-clamp-2 font-mono">
+                        <p className="text-[10px] text-red-400 mt-1 line-clamp-2 font-mono" title="O processo excedeu o tempo limite de 10 minutos e foi interrompido pelo sistema.">
                           O processo excedeu o tempo limite de 10 minutos e foi interrompido pelo sistema.
                         </p>
                       )}
-                      {effectiveStatus === "erro" && log.mensagem && (
-                        <p className="text-[10px] text-red-400 mt-1 line-clamp-1 font-mono">
-                          {log.mensagem}
-                        </p>
+                      {effectiveStatus === "erro" && (log.detalhes || log.mensagem) && (
+                        <ErrorMessage text={log.detalhes || log.mensagem} />
                       )}
                     </div>
 

@@ -4,20 +4,15 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Loader2, Server, Save, Search } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface IntegracaoConfig {
   id?: number;
-  meta_access_token: string;
-  meta_ad_account_id: string;
   google_customer_id: string;
   google_developer_token: string;
 }
 
 export default function IntegracoesPage() {
   const [config, setConfig] = useState<IntegracaoConfig>({
-    meta_access_token: "",
-    meta_ad_account_id: "",
     google_customer_id: "",
     google_developer_token: "",
   });
@@ -47,8 +42,6 @@ export default function IntegracoesPage() {
       if (data) {
         setConfigId(data.id);
         setConfig({
-          meta_access_token: data.meta_access_token || "",
-          meta_ad_account_id: data.meta_ad_account_id || "",
           google_customer_id: data.google_customer_id || "",
           google_developer_token: data.google_developer_token || "",
         });
@@ -65,11 +58,9 @@ export default function IntegracoesPage() {
       setIsSaving(true);
 
       const payload = {
-        meta_access_token: config.meta_access_token,
-        meta_ad_account_id: config.meta_ad_account_id,
         google_customer_id: config.google_customer_id,
         google_developer_token: config.google_developer_token,
-        ...(configId ? { id: configId } : {}), // only send ID if it exists for update
+        ...(configId ? { id: configId } : {}),
       };
 
       const { data, error } = await supabase
@@ -135,50 +126,70 @@ export default function IntegracoesPage() {
       {/* GRID: 2 columns, sharp borders, minimal padding */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
-        {/* BLOCO META ADS */}
-        <div className="relative group flex flex-col border border-border/50 bg-card p-8 transition-colors hover:border-primary/50">
+        {/* BLOCO META ADS — Gerenciado via backend */}
+        <div className="relative group flex flex-col border border-green-500/30 bg-card p-8 transition-colors hover:border-green-500/50">
+          {/* Ícone de fundo decorativo */}
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Server className="w-24 h-24" />
-          </div>
-          
-          <div className="relative z-10 mb-8">
-            <h2 className="text-2xl font-bold tracking-tight uppercase flex items-center gap-3">
-              <span className="w-3 h-3 bg-blue-500 block" />
-              Meta Ads
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">Configuração de acesso via Graph API</p>
+            <Server className="w-24 h-24 text-green-500" />
           </div>
 
-          <div className="flex flex-col gap-6 relative z-10">
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex justify-between">
-                Token de Acesso (Access Token)
-                <span className="text-[10px] text-blue-500/80">Obrigatório</span>
-              </label>
-              <input
-                type="password"
-                value={config.meta_access_token}
-                onChange={(e) => handleChange("meta_access_token", e.target.value)}
-                placeholder="EAAI..."
-                className="w-full bg-background border border-border px-4 py-3 text-sm outline-none focus:border-blue-500 transition-colors placeholder:text-muted-foreground/30 font-mono rounded-none"
-              />
+          {/* Header */}
+          <div className="relative z-10 mb-6">
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-2">
+              <h2 className="text-2xl font-bold tracking-tight uppercase flex items-center gap-3">
+                <span className="w-3 h-3 bg-blue-500 block" />
+                Meta Ads
+              </h2>
+              {/* Badge de status */}
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold uppercase tracking-widest border border-green-500/40 bg-green-500/10 text-green-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                Sistema Conectado
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">Integração via System User &amp; Graph API</p>
+          </div>
+
+          {/* Corpo informativo */}
+          <div className="relative z-10 flex flex-col gap-5 flex-1">
+            {/* Descrição principal */}
+            <div className="px-4 py-4 border border-green-500/20 bg-green-500/5">
+              <p className="text-sm text-foreground/80 leading-relaxed">
+                Integração ativa via API de Agência. As métricas estão sendo coletadas automaticamente da conta global.
+              </p>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                ID da Conta de Anúncios
-              </label>
-              <input
-                type="text"
-                value={config.meta_ad_account_id}
-                onChange={(e) => handleChange("meta_ad_account_id", e.target.value)}
-                placeholder="act_123456789"
-                className="w-full bg-background border border-border px-4 py-3 text-sm outline-none focus:border-blue-500 transition-colors placeholder:text-muted-foreground/30 font-mono rounded-none"
-              />
-              <p className="text-[11px] text-muted-foreground/70">Prefixo 'act_' é opcional, mas recomendado.</p>
+            {/* Detalhes técnicos */}
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0 mt-1.5" />
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Método</p>
+                  <p className="text-sm text-foreground/70 font-mono">System User Token · Graph API v21</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0 mt-1.5" />
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Coleta</p>
+                  <p className="text-sm text-foreground/70">Automática · Gerenciada pelo motor n8n</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0 mt-1.5" />
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Escopo</p>
+                  <p className="text-sm text-foreground/70">Conta global da agência · Todos os clientes</p>
+                </div>
+              </div>
             </div>
+
+            {/* Nota de rodapé */}
+            <p className="text-[11px] text-muted-foreground/50 mt-auto pt-4 border-t border-border/30">
+              Credenciais gerenciadas exclusivamente no backend. Nenhuma configuração manual é necessária.
+            </p>
           </div>
         </div>
+
 
         {/* BLOCO GOOGLE ADS */}
         <div className="relative group flex flex-col border border-border/50 bg-card p-8 transition-colors hover:border-primary/50">

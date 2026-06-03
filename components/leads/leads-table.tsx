@@ -33,8 +33,11 @@ import {
   Send,
   CheckSquare,
   Filter,
+  Pencil,
+  Trash2,
 } from "lucide-react"
 import { LeadDetailsModal, getStatusConfig } from "./lead-details-modal"
+import { EditLeadModal } from "./edit-lead-modal"
 
 // ──────────────────────────────────────────
 // Badge de qualificação SDR
@@ -80,6 +83,7 @@ export function LeadsTable() {
 
   // ── Estado do modal ──
   const [modalLead, setModalLead] = useState<Lead | null>(null)
+  const [editingLead, setEditingLead] = useState<Lead | null>(null)
 
   // ── Paginação ──
   const [page, setPage] = useState(0) // 0-indexed
@@ -236,6 +240,29 @@ export function LeadsTable() {
   }
 
   // ──────────────────────────────────────────
+  // Excluir Lead
+  // ──────────────────────────────────────────
+  const handleDeleteLead = async (lead: Lead) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o lead @${lead.instagram_username}?`)) return
+
+    const toastId = toast.loading("Excluindo lead...")
+    const { error } = await supabase.from("leads").delete().eq("id", lead.id)
+
+    if (error) {
+      toast.error("Erro ao excluir lead.", { id: toastId })
+    } else {
+      toast.success("Lead excluído com sucesso!", { id: toastId })
+      setLeads((prev) => prev.filter((l) => l.id !== lead.id))
+      setTotalCount((prev) => Math.max(0, prev - 1))
+      if (selectedIds.has(lead.id)) {
+        const newSet = new Set(selectedIds)
+        newSet.delete(lead.id)
+        setSelectedIds(newSet)
+      }
+    }
+  }
+
+  // ──────────────────────────────────────────
   // Disparar approaches — Webhook real WF2 (n8n)
   // ──────────────────────────────────────────
   const handleDispararApproaches = async () => {
@@ -266,7 +293,10 @@ export function LeadsTable() {
     const toastId = toast.loading(`Disparando approaches para ${label} via n8n...`)
 
     try {
-      const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_APPROACH!
+      const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_APPROACH
+      if (!webhookUrl) {
+        throw new Error("Webhook URL não configurada (NEXT_PUBLIC_N8N_WEBHOOK_APPROACH). Verifique o arquivo .env.local e reinicie o servidor Next.js.")
+      }
 
       const response = await fetch(webhookUrl, {
         method: "POST",
@@ -283,12 +313,49 @@ export function LeadsTable() {
         }),
       })
 
+      // Tenta fazer o parse do JSON para ler o novo formato do n8n
+      const data = await response.json().catch(() => null)
+
       if (!response.ok) {
-        const body = await response.text().catch(() => "")
-        throw new Error(body || `HTTP ${response.status}`)
+        throw new Error(data?.error || data?.message || `HTTP ${response.status}`)
       }
 
-      toast.success(`${leadsToApproach.length} approaches disparados via n8n!`, { id: toastId })
+      // Cenário A: Erro de Validação de Regra de Negócio (ex: Limite Diário, Horário)
+      if (data && data.success === false) {
+        toast.error(data.error || "Erro de validação no disparo.", { id: toastId })
+        return
+      }
+
+      // Cenário B: Processamento Concluído com/sem falhas parciais
+      if (data && data.success === true) {
+        toast.success(data.message || `Processamento concluído.`, { id: toastId })
+
+        // Mapear e Destacar Leads com Erro na UI
+        if (data.detalhes && Array.isArray(data.detalhes)) {
+          const updatesMap = data.detalhes.reduce((acc: any, d: any) => {
+            acc[d.instagram_username] = d
+            return acc
+          }, {})
+
+          setLeads((prev) =>
+            prev.map((l) => {
+              const detail = updatesMap[l.instagram_username]
+              if (detail) {
+                if (detail.status === "erro") {
+                  return { ...l, status: "error" as LeadStatus, erro_msg: detail.erro_msg }
+                } else if (detail.status === "approached") {
+                  return { ...l, status: "approached" as LeadStatus, approached: true }
+                }
+              }
+              return l
+            })
+          )
+        }
+      } else {
+        // Fallback caso a resposta não traga o formato esperado
+        toast.success(`${leadsToApproach.length} approaches disparados via n8n!`, { id: toastId })
+      }
+
       if (hasSelection) setSelectedIds(new Set())
     } catch (error: any) {
       const errorMessage = error.message || String(error)
@@ -381,37 +448,6 @@ export function LeadsTable() {
             <SelectItem value="approved">Approved (en)</SelectItem>
           </SelectContent>
         </Select>
-
-        {/* Filtro: tem WhatsApp */}
-        <Button
-          id="leads-filter-whatsapp"
-          variant={filters.hasWhatsApp ? "default" : "outline"}
-          size="sm"
-          className="whitespace-nowrap"
-          onClick={() => {
-            setFilters((f) => ({ ...f, hasWhatsApp: !f.hasWhatsApp }))
-            setPage(0)
-          }}
-        >
-          📱 Com WhatsApp
-        </Button>
-
-        {/* Filtro: +5K seguidores */}
-        <Button
-          id="leads-filter-followers"
-          variant={filters.minFollowers === 5000 ? "default" : "outline"}
-          size="sm"
-          className="whitespace-nowrap"
-          onClick={() => {
-            setFilters((f) => ({
-              ...f,
-              minFollowers: f.minFollowers === 5000 ? null : 5000,
-            }))
-            setPage(0)
-          }}
-        >
-          👥 +5K seguidores
-        </Button>
 
         {/* Refresh */}
         <Button
@@ -598,6 +634,7 @@ export function LeadsTable() {
                             "text-xs font-medium border",
                             statusCfg.className
                           )}
+                          title={lead.erro_msg || undefined}
                         >
                           {statusCfg.label}
                         </Badge>
@@ -622,14 +659,35 @@ export function LeadsTable() {
                         className="text-right pr-4"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs"
-                          onClick={() => setModalLead(lead)}
-                        >
-                          Detalhes
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            onClick={() => setModalLead(lead)}
+                            title="Detalhes"
+                          >
+                            <Search className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-blue-500"
+                            onClick={() => setEditingLead(lead)}
+                            title="Editar"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-red-500"
+                            onClick={() => handleDeleteLead(lead)}
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -678,6 +736,16 @@ export function LeadsTable() {
         open={!!modalLead}
         onClose={() => setModalLead(null)}
         onStatusChange={handleStatusChange}
+      />
+
+      {/* ── Modal de Edição ── */}
+      <EditLeadModal
+        lead={editingLead}
+        open={!!editingLead}
+        onClose={() => setEditingLead(null)}
+        onUpdate={(updated) => {
+          setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
+        }}
       />
     </div>
   )

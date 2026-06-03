@@ -193,6 +193,7 @@ export default function ClienteProfilePage() {
   const [feedbacks, setFeedbacks] = useState<FeedbackCS[]>([])
   const [kpiSnapshot, setKpiSnapshot] = useState<any>(null)
   const [kpiAnalise, setKpiAnalise] = useState<any>(null)
+  const [googleAdsSnapshot, setGoogleAdsSnapshot] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
@@ -231,7 +232,7 @@ export default function ClienteProfilePage() {
     if (whatsapp) orParts.push(`cliente_whatsapp.eq.${whatsapp}`)
     const orFilter = orParts.join(",")
 
-    const [fbRes, kpiRes, analiseRes] = await Promise.allSettled([
+    const [fbRes, kpiRes, analiseRes, googleRes] = await Promise.allSettled([
       supabase
         .from("feedbacks_cs")
         .select("id, criado_em, cliente_nome, cliente_whatsapp, status_pesquisa, sentimento, resumo_executivo, nps")
@@ -242,11 +243,14 @@ export default function ClienteProfilePage() {
         .order("criado_em", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("kpi_analises").select("*").eq("conta_nome", nome)
         .order("criado_em", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("google_ads_snapshots").select("*").eq("conta_nome", nome)
+        .order("criado_em", { ascending: false }).limit(1).maybeSingle(),
     ])
 
     if (fbRes.status === "fulfilled") setFeedbacks((fbRes.value as any).data || [])
     if (kpiRes.status === "fulfilled") setKpiSnapshot((kpiRes.value as any).data || null)
     if (analiseRes.status === "fulfilled") setKpiAnalise((analiseRes.value as any).data || null)
+    if (googleRes.status === "fulfilled") setGoogleAdsSnapshot((googleRes.value as any).data || null)
 
     setLoading(false)
   }, [id])
@@ -325,6 +329,41 @@ export default function ClienteProfilePage() {
   const metaId    = getMetaId(cliente)
   const googleId  = getGoogleId(cliente)
   const waNumber  = whatsapp?.replace(/\D/g, "") ?? ""
+
+  // Lógica de CPA
+  let cpaAtualMeta: number | null = null;
+  let cpaAtualGoogle: number | null = null;
+  let cpaAtualUnificado: number | null = null;
+  let nomeCpaExibido = "CPA";
+
+  if (kpiSnapshot && kpiSnapshot.cac != null) {
+    cpaAtualMeta = Number(kpiSnapshot.cac);
+  }
+
+  if (googleAdsSnapshot && googleAdsSnapshot.spend != null && googleAdsSnapshot.conversions != null) {
+    const s = Number(googleAdsSnapshot.spend);
+    const c = Number(googleAdsSnapshot.conversions);
+    cpaAtualGoogle = c > 0 ? s / c : 0;
+  }
+
+  const hasMetaCpa = cpaAtualMeta !== null;
+  const hasGoogleCpa = cpaAtualGoogle !== null;
+
+  if (hasMetaCpa && hasGoogleCpa) {
+    const totalSpend = (Number(kpiSnapshot?.investimento_total) || 0) + (Number(googleAdsSnapshot?.spend) || 0);
+    const totalConversions = (Number(kpiSnapshot?.leads_gerados) || 0) + (Number(googleAdsSnapshot?.conversions) || 0);
+    cpaAtualUnificado = totalConversions > 0 ? totalSpend / totalConversions : 0;
+    nomeCpaExibido = "CPA Médio Unificado";
+  } else if (hasMetaCpa) {
+    cpaAtualUnificado = cpaAtualMeta;
+    nomeCpaExibido = "CPA (Meta Ads)";
+  } else if (hasGoogleCpa) {
+    cpaAtualUnificado = cpaAtualGoogle;
+    nomeCpaExibido = "CPA (Google Ads)";
+  }
+
+  const hasMetrics = !!kpiSnapshot || !!googleAdsSnapshot;
+  const mainSnapshotDate = kpiSnapshot?.criado_em || googleAdsSnapshot?.criado_em;
 
   return (
     <div className="flex-1 p-8 pt-6">
@@ -474,7 +513,7 @@ export default function ClienteProfilePage() {
                   </a>
                 </div>
               )}
-              {metaId && (
+              {metaId ? (
                 <div className="flex items-center gap-2.5">
                   <Megaphone className="h-3.5 w-3.5 text-muted-foreground/60 flex-shrink-0" />
                   <div>
@@ -482,8 +521,16 @@ export default function ClienteProfilePage() {
                     <p className="text-sm font-mono">{metaId}</p>
                   </div>
                 </div>
+              ) : (
+                <div className="flex items-center gap-2.5">
+                  <Megaphone className="h-3.5 w-3.5 text-muted-foreground/30 flex-shrink-0" />
+                  <div>
+                    <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-0.5">Meta Ads ID</p>
+                    <p className="text-xs text-muted-foreground/40 italic">Usando conta global da agência</p>
+                  </div>
+                </div>
               )}
-              {googleId && (
+              {googleId ? (
                 <div className="flex items-center gap-2.5">
                   <TrendingUp className="h-3.5 w-3.5 text-muted-foreground/60 flex-shrink-0" />
                   <div>
@@ -491,9 +538,17 @@ export default function ClienteProfilePage() {
                     <p className="text-sm font-mono">{googleId}</p>
                   </div>
                 </div>
+              ) : (
+                <div className="flex items-center gap-2.5">
+                  <TrendingUp className="h-3.5 w-3.5 text-muted-foreground/30 flex-shrink-0" />
+                  <div>
+                    <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-0.5">Google Ads ID</p>
+                    <p className="text-xs text-muted-foreground/40 italic">Usando conta global da agência</p>
+                  </div>
+                </div>
               )}
               {!driveUrl && !metaId && !googleId && (
-                <p className="text-xs text-muted-foreground/40 italic text-center py-2">Sem integrações configuradas.</p>
+                <p className="text-xs text-muted-foreground/40 italic text-center py-2">Drive não configurado. IDs de plataforma usando conta global.</p>
               )}
             </div>
           </div>
@@ -505,15 +560,15 @@ export default function ClienteProfilePage() {
             icon={TrendingUp}
             label="Últimas Métricas de Campanha"
             right={
-              kpiSnapshot?.criado_em && (
+              mainSnapshotDate && (
                 <span className="text-[10px] text-muted-foreground/40 font-mono">
-                  {format(new Date(kpiSnapshot.criado_em), "dd/MM/yyyy", { locale: ptBR })}
+                  {format(new Date(mainSnapshotDate), "dd/MM/yyyy", { locale: ptBR })}
                 </span>
               )
             }
           />
           <div className="p-4">
-            {!kpiSnapshot ? (
+            {!hasMetrics ? (
               <div className="py-6 flex flex-col items-center gap-2 text-muted-foreground">
                 <BarChart2 className="h-6 w-6 opacity-20" />
                 <p className="text-xs text-center">
@@ -526,40 +581,58 @@ export default function ClienteProfilePage() {
             ) : (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <MetricTile
-                    icon={Zap}
-                    label="ROAS"
-                    value={`${fmtDec(kpiSnapshot.roas)}x`}
-                    color={Number(kpiSnapshot.roas) >= 3 ? "text-green-400" : Number(kpiSnapshot.roas) >= 1.5 ? "text-yellow-400" : "text-red-400"}
-                  />
-                  <MetricTile
-                    icon={DollarSign}
-                    label="Investimento"
-                    value={fmtBRL(kpiSnapshot.investimento_total)}
-                  />
-                  <MetricTile
-                    icon={ShoppingCart}
-                    label="Receita atribuída"
-                    value={fmtBRL(kpiSnapshot.receita_atribuida)}
-                    color="text-primary"
-                  />
-                  <MetricTile
-                    icon={MousePointerClick}
-                    label="CTR"
-                    value={fmtPct(kpiSnapshot.ctr)}
-                  />
+                  {cpaAtualUnificado !== null && (
+                    <MetricTile
+                      icon={Target}
+                      label={nomeCpaExibido}
+                      value={cpaAtualUnificado === 0 ? "R$ 0,00" : fmtBRL(cpaAtualUnificado)}
+                      color="text-primary"
+                    />
+                  )}
+                  {kpiSnapshot?.roas != null && (
+                    <MetricTile
+                      icon={Zap}
+                      label="ROAS"
+                      value={`${fmtDec(kpiSnapshot.roas)}x`}
+                      color={Number(kpiSnapshot.roas) >= 3 ? "text-green-400" : Number(kpiSnapshot.roas) >= 1.5 ? "text-yellow-400" : "text-red-400"}
+                    />
+                  )}
+                  {kpiSnapshot?.investimento_total != null && (
+                    <MetricTile
+                      icon={DollarSign}
+                      label="Investimento"
+                      value={fmtBRL(kpiSnapshot.investimento_total)}
+                    />
+                  )}
+                  {kpiSnapshot?.receita_atribuida != null && (
+                    <MetricTile
+                      icon={ShoppingCart}
+                      label="Receita atribuída"
+                      value={fmtBRL(kpiSnapshot.receita_atribuida)}
+                      color="text-primary"
+                    />
+                  )}
+                  {kpiSnapshot?.ctr != null && (
+                    <MetricTile
+                      icon={MousePointerClick}
+                      label="CTR"
+                      value={fmtPct(kpiSnapshot.ctr)}
+                    />
+                  )}
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {kpiSnapshot.leads_gerados != null && (
-                    <MetricTile icon={Target} label="Leads" value={String(kpiSnapshot.leads_gerados)} />
-                  )}
-                  {kpiSnapshot.cpl != null && (
-                    <MetricTile icon={DollarSign} label="CPL" value={fmtBRL(kpiSnapshot.cpl)} />
-                  )}
-                  {kpiSnapshot.taxa_conversao != null && (
-                    <MetricTile icon={TrendingUp} label="Taxa conv." value={fmtPct(kpiSnapshot.taxa_conversao)} />
-                  )}
-                </div>
+                {kpiSnapshot && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {kpiSnapshot.leads_gerados != null && (
+                      <MetricTile icon={Target} label="Leads" value={String(kpiSnapshot.leads_gerados)} />
+                    )}
+                    {kpiSnapshot.cpl != null && (
+                      <MetricTile icon={DollarSign} label="CPL" value={fmtBRL(kpiSnapshot.cpl)} />
+                    )}
+                    {kpiSnapshot.taxa_conversao != null && (
+                      <MetricTile icon={TrendingUp} label="Taxa conv." value={fmtPct(kpiSnapshot.taxa_conversao)} />
+                    )}
+                  </div>
+                )}
 
                 {/* AI analysis summary */}
                 {kpiAnalise?.resumo_executivo && (
@@ -631,7 +704,7 @@ export default function ClienteProfilePage() {
         <div className="border border-border bg-card" style={{ borderRadius: "2px" }}>
           <SectionHeader icon={BellRing} label="Configurações de Alertas Ativos" />
           <div className="p-4">
-            <AlertasConfig clienteId={id} />
+            <AlertasConfig clienteId={id} cpaAtualMeta={cpaAtualMeta} cpaAtualGoogle={cpaAtualGoogle} />
           </div>
         </div>
 
