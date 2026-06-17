@@ -400,6 +400,16 @@ export default function TarefasPage() {
         </h2>
 
         <div className="flex items-center gap-2">
+          {/* Gerar Insights */}
+          <Button
+            variant="outline"
+            onClick={handleGerarInsights}
+            disabled={isLoadingInsights || tarefas.length === 0}
+          >
+            <Sparkles className={`mr-2 h-4 w-4 ${isLoadingInsights ? "animate-pulse" : ""}`} />
+            {isLoadingInsights ? "Analisando..." : "Gerar Insights"}
+          </Button>
+
           {/* Sincronizar Notion */}
           <Button
             variant="outline"

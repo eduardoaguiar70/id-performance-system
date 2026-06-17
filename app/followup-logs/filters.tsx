@@ -3,7 +3,6 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { Search } from "lucide-react";
-import { useDebounce } from "@/hooks/use-debounce"; // Wait, do I have this hook? Probably not, I'll implement a simple timeout or just a button to search.
 
 export function FollowupFilters() {
   const router = useRouter();

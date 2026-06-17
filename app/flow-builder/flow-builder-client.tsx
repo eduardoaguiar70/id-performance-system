@@ -34,7 +34,6 @@ type FollowupFlow = {
 const NODE_TYPES = { messageNode: MessageNode };
 
 const MAX_STEPS = 7;
-const NODE_WIDTH = 256;
 const NODE_GAP = 60;
 const NODE_HEIGHT = 120;
 const NODE_TOTAL_HEIGHT = NODE_HEIGHT + NODE_GAP;

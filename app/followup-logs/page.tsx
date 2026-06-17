@@ -16,8 +16,9 @@ interface FollowupLog {
 }
 
 // Helper for phone masking
-function formatPhone(phone: string) {
-  const cleaned = ('' + phone).replace(/\D/g, '');
+function formatPhone(phone?: string) {
+  if (!phone) return "";
+  const cleaned = phone.replace(/\D/g, '');
   if (cleaned.length === 11) {
     return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7, 11)}`;
   } else if (cleaned.length === 10) {

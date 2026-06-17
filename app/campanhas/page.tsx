@@ -5,10 +5,10 @@ import { useEffect, useState } from "react"
 import {
   TrendingUp, AlertTriangle, Building2, Target,
   MousePointerClick, DollarSign, ShoppingCart,
-  Percent, Eye, RefreshCw, CalendarRange, X
+  Percent, RefreshCw, CalendarRange, X
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
