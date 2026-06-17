@@ -7,10 +7,12 @@ import { CheckCircle2, MessageSquare, AlertCircle, Send } from "lucide-react";
 interface FollowupLog {
   id?: string;
   created_at: string;
+  contact_name?: string;
   phone?: string;
   telefone?: string;
   message?: string;
   mensagem?: string;
+  message_sent?: string;
   spintax?: string;
   status?: string;
 }
@@ -148,8 +150,11 @@ export default async function FollowupLogsPage({
 
                     {/* Card header */}
                     <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/20">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-base font-bold text-foreground tracking-tight">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-base font-bold text-foreground uppercase tracking-wider">
+                          {log.contact_name || "Contato"}
+                        </span>
+                        <span className="font-mono text-sm text-muted-foreground bg-muted/40 px-2 py-0.5">
                           {formatPhone(log.phone || log.telefone)}
                         </span>
                       </div>
@@ -171,7 +176,7 @@ export default async function FollowupLogsPage({
                     {/* Message body */}
                     <div className="px-5 py-4">
                       <p className="text-muted-foreground text-sm font-mono leading-relaxed whitespace-pre-wrap border-l-2 border-primary/30 pl-4">
-                        {log.message || log.mensagem || log.spintax || (
+                        {log.message_sent || log.message || log.mensagem || log.spintax || (
                           <span className="italic opacity-50">Mensagem não registrada.</span>
                         )}
                       </p>
