@@ -18,6 +18,8 @@ import {
   Building2,
   Heart,
   Settings,
+  Send,
+  GitMerge,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -61,8 +63,10 @@ const groups: NavGroup[] = [
   {
     label: "Comercial",
     items: [
-      { name: "Leads",   href: "/leads",   icon: Users },
-      { name: "Scraper", href: "/scraper", icon: ScanSearch },
+      { name: "Leads",         href: "/leads",         icon: Users },
+      { name: "Follow-ups",    href: "/followup-logs", icon: Send },
+      { name: "Flow Builder",  href: "/flow-builder",  icon: GitMerge },
+      { name: "Scraper",       href: "/scraper",       icon: ScanSearch },
     ],
   },
   {
