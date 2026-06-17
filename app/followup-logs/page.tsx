@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { FollowupFilters } from "./filters";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CheckCircle2, MessageSquare, AlertCircle } from "lucide-react";
+import { CheckCircle2, MessageSquare, AlertCircle, Send } from "lucide-react";
 
 interface FollowupLog {
   id?: string;
@@ -15,13 +15,21 @@ interface FollowupLog {
   status?: string;
 }
 
-// Helper for phone masking
+// Helper for phone formatting
 function formatPhone(phone?: string) {
   if (!phone) return "";
-  const cleaned = phone.replace(/\D/g, '');
+  const cleaned = phone.replace(/\D/g, "");
+  if (cleaned.length === 13) {
+    // +55 11 9xxxx-xxxx
+    return `+${cleaned.substring(0, 2)} (${cleaned.substring(2, 4)}) ${cleaned.substring(4, 9)}-${cleaned.substring(9, 13)}`;
+  }
+  if (cleaned.length === 12) {
+    return `+${cleaned.substring(0, 2)} (${cleaned.substring(2, 4)}) ${cleaned.substring(4, 8)}-${cleaned.substring(8, 12)}`;
+  }
   if (cleaned.length === 11) {
     return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7, 11)}`;
-  } else if (cleaned.length === 10) {
+  }
+  if (cleaned.length === 10) {
     return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 6)}-${cleaned.substring(6, 10)}`;
   }
   return phone;
@@ -43,102 +51,130 @@ export default async function FollowupLogsPage({
     query = query.ilike("phone", `%${searchParams.phone}%`);
   }
 
-  if (searchParams.date === "hoje") {
+  const dateParam = searchParams.date;
+
+  if (dateParam === "hoje") {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     query = query.gte("created_at", today.toISOString());
-  } else if (searchParams.date === "7dias") {
+  } else if (dateParam === "7dias") {
     const d = new Date();
     d.setDate(d.getDate() - 7);
     query = query.gte("created_at", d.toISOString());
+  } else if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    // Specific date: from 00:00 to 23:59:59
+    const start = new Date(dateParam + "T00:00:00");
+    const end = new Date(dateParam + "T23:59:59");
+    query = query
+      .gte("created_at", start.toISOString())
+      .lte("created_at", end.toISOString());
   }
 
   const { data: logs, error } = await query;
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-6 sm:p-12 font-sans selection:bg-primary selection:text-primary-foreground">
-      <div className="max-w-5xl mx-auto">
-        <header className="mb-16">
-          <h1 className="text-4xl sm:text-6xl font-bold tracking-tighter mb-4 text-balance">
-            Follow-up <span className="text-primary">Timeline.</span>
-          </h1>
-          <p className="text-muted-foreground text-lg max-w-2xl leading-relaxed">
-            Acompanhe o fluxo de disparos automáticos do n8n para os leads B2B em tempo real.
+    <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary selection:text-primary-foreground">
+      <div className="max-w-4xl mx-auto px-4 sm:px-8 py-6">
+
+        {/* ── Compact Header ──────────────────────────────────────────── */}
+        <header className="mb-6 pb-5 border-b border-border/30">
+          <div className="flex items-center gap-2.5 mb-1">
+            <Send className="w-4 h-4 text-primary" />
+            <h1 className="text-lg font-bold tracking-tight text-foreground">
+              Follow-up <span className="text-primary">Timeline</span>
+            </h1>
+          </div>
+          <p className="text-xs text-muted-foreground ml-6.5 leading-relaxed">
+            Disparos automáticos do n8n para leads B2B
           </p>
         </header>
 
+        {/* ── Filters ─────────────────────────────────────────────────── */}
         <FollowupFilters />
 
+        {/* ── Results count ───────────────────────────────────────────── */}
+        {!error && logs && logs.length > 0 && (
+          <div className="flex items-center justify-between mb-5">
+            <p className="text-xs text-muted-foreground">
+              <span className="text-foreground font-semibold">{logs.length}</span>{" "}
+              {logs.length === 1 ? "registro encontrado" : "registros encontrados"}
+            </p>
+          </div>
+        )}
+
+        {/* ── States ──────────────────────────────────────────────────── */}
         {error ? (
-          <div className="p-6 border border-destructive/50 bg-destructive/10 text-destructive rounded-none flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+          <div className="p-4 border border-destructive/40 bg-destructive/10 text-destructive flex items-start gap-3">
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
             <div>
-              <h3 className="font-semibold">Erro ao carregar logs</h3>
-              <p className="text-sm opacity-90">{error.message}</p>
+              <h3 className="text-sm font-semibold">Erro ao carregar logs</h3>
+              <p className="text-xs opacity-80 mt-0.5">{error.message}</p>
             </div>
           </div>
         ) : !logs || logs.length === 0 ? (
-          <div className="border border-dashed border-border p-16 flex flex-col items-center justify-center text-center rounded-none bg-card/30">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-              <MessageSquare className="w-8 h-8 text-primary opacity-80" />
+          <div className="border border-dashed border-border/50 py-16 flex flex-col items-center justify-center text-center bg-card/20">
+            <div className="w-10 h-10 bg-primary/10 flex items-center justify-center mb-4">
+              <MessageSquare className="w-5 h-5 text-primary opacity-70" />
             </div>
-            <h3 className="text-xl font-medium mb-2">Nenhum follow-up automático disparado ainda</h3>
-            <p className="text-muted-foreground max-w-md text-balance">
-              Não encontramos nenhum registro correspondente aos filtros selecionados.
+            <h3 className="text-sm font-medium mb-1">Nenhum disparo encontrado</h3>
+            <p className="text-xs text-muted-foreground max-w-xs">
+              Tente ajustar os filtros ou selecionar outro período.
             </p>
           </div>
         ) : (
-          <div className="relative border-l border-border/40 ml-4 sm:ml-8 pl-8 sm:pl-12 pb-12 space-y-16">
+          /* ── Timeline ─────────────────────────────────────────────── */
+          <div className="relative border-l border-border/30 ml-3 pl-6 pb-8 space-y-5">
             {logs.map((log: FollowupLog, index: number) => {
               const date = new Date(log.created_at);
-              const isSent = log.status?.toLowerCase() === "enviado" || log.status?.toLowerCase() === "sent" || !log.status; // Default to sent if status missing for demo
+              const isSent =
+                log.status?.toLowerCase() === "enviado" ||
+                log.status?.toLowerCase() === "sent" ||
+                !log.status;
 
               return (
                 <article key={log.id || index} className="relative group">
                   {/* Timeline Dot */}
-                  <div className="absolute -left-[37px] sm:-left-[53px] top-1.5 w-3 h-3 rounded-full bg-primary ring-4 ring-background shadow-[0_0_10px_rgba(93,194,32,0.5)] group-hover:scale-150 group-hover:shadow-[0_0_15px_rgba(93,194,32,0.8)] transition-all duration-300" />
-                  
-                  {/* Date & Time (Left offset in larger screens conceptually, but inline for brutalist stacking) */}
-                  <time className="block text-sm text-primary font-mono mb-3 tracking-widest uppercase">
+                  <div className="absolute -left-[25px] top-2 w-2 h-2 bg-primary ring-2 ring-background group-hover:scale-150 group-hover:shadow-[0_0_8px_rgba(93,194,32,0.7)] transition-all duration-200" />
+
+                  {/* Timestamp */}
+                  <time className="block text-[10px] text-primary font-mono mb-1.5 tracking-widest uppercase">
                     {format(date, "dd MMM yyyy • HH:mm", { locale: ptBR })}
                   </time>
 
-                  {/* Card Content */}
-                  <div className="bg-card border border-border/30 hover:border-primary/50 transition-colors duration-300 p-6 sm:p-8 rounded-none relative overflow-hidden">
-                    {/* Abstract Corner Accent */}
-                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-primary/10 to-transparent pointer-events-none" />
-                    
-                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
-                      <div>
-                        <h4 className="text-xl font-medium tracking-tight text-foreground flex items-center gap-2">
-                          {formatPhone(log.phone || log.telefone)}
-                        </h4>
-                      </div>
-                      
-                      {/* Status Badge */}
+                  {/* Card */}
+                  <div className="bg-card border border-border/25 hover:border-primary/40 transition-colors duration-200 relative overflow-hidden">
+                    {/* Corner accent */}
+                    <div className="absolute top-0 right-0 w-10 h-10 bg-gradient-to-bl from-primary/8 to-transparent pointer-events-none" />
+
+                    {/* Card header */}
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/20">
                       <div className="flex items-center gap-2">
-                        {isSent ? (
-                          <div className="flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1 text-xs font-bold uppercase tracking-wider border border-primary/20">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Enviado
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 bg-muted text-muted-foreground px-3 py-1 text-xs font-bold uppercase tracking-wider border border-border">
-                            <AlertCircle className="w-3.5 h-3.5" />
-                            {log.status || "Pendente"}
-                          </div>
-                        )}
+                        <span className="font-mono text-sm font-semibold text-foreground tracking-tight">
+                          {formatPhone(log.phone || log.telefone)}
+                        </span>
                       </div>
+
+                      {/* Status badge */}
+                      {isSent ? (
+                        <div className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-primary/20">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Enviado
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-border/40">
+                          <AlertCircle className="w-3 h-3" />
+                          {log.status || "Pendente"}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Message Body */}
-                    <div className="relative">
-                      <MessageSquare className="absolute -left-3 -top-3 w-8 h-8 text-muted/20 rotate-12" />
-                      <div className="pl-5 border-l-2 border-primary/30">
-                        <p className="text-muted-foreground text-sm sm:text-base whitespace-pre-wrap leading-relaxed font-mono">
-                          {log.message || log.mensagem || log.spintax || "Mensagem não registrada."}
-                        </p>
-                      </div>
+                    {/* Message body */}
+                    <div className="px-4 py-3">
+                      <p className="text-muted-foreground text-xs font-mono leading-relaxed whitespace-pre-wrap border-l-2 border-primary/25 pl-3">
+                        {log.message || log.mensagem || log.spintax || (
+                          <span className="italic opacity-50">Mensagem não registrada.</span>
+                        )}
+                      </p>
                     </div>
                   </div>
                 </article>
