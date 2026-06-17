@@ -4,6 +4,17 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CheckCircle2, MessageSquare, AlertCircle } from "lucide-react";
 
+interface FollowupLog {
+  id?: string;
+  created_at: string;
+  phone?: string;
+  telefone?: string;
+  message?: string;
+  mensagem?: string;
+  spintax?: string;
+  status?: string;
+}
+
 // Helper for phone masking
 function formatPhone(phone: string) {
   const cleaned = ('' + phone).replace(/\D/g, '');
@@ -77,7 +88,7 @@ export default async function FollowupLogsPage({
           </div>
         ) : (
           <div className="relative border-l border-border/40 ml-4 sm:ml-8 pl-8 sm:pl-12 pb-12 space-y-16">
-            {logs.map((log: any, index: number) => {
+            {logs.map((log: FollowupLog, index: number) => {
               const date = new Date(log.created_at);
               const isSent = log.status?.toLowerCase() === "enviado" || log.status?.toLowerCase() === "sent" || !log.status; // Default to sent if status missing for demo
 

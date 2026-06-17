@@ -34,9 +34,9 @@ type FollowupFlow = {
 const NODE_TYPES = { messageNode: MessageNode };
 
 const MAX_STEPS = 7;
-const NODE_WIDTH = 288;
-const NODE_GAP = 100;
-const NODE_HEIGHT = 180;
+const NODE_WIDTH = 256;
+const NODE_GAP = 60;
+const NODE_HEIGHT = 120;
 const NODE_TOTAL_HEIGHT = NODE_HEIGHT + NODE_GAP;
 
 function buildEdge(sourceId: string, targetId: string): Edge {
@@ -284,7 +284,7 @@ export function FlowBuilderClient() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
+    <div className="flex flex-col h-full bg-background text-foreground overflow-hidden">
       {/* ── Top Bar ── */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-border/60 bg-card shrink-0">
         <div className="flex flex-col">
@@ -393,9 +393,9 @@ export function FlowBuilderClient() {
           onConnect={onConnect}
           nodeTypes={NODE_TYPES}
           fitView
-          fitViewOptions={{ padding: 0.4 }}
-          minZoom={0.3}
-          maxZoom={1.5}
+          fitViewOptions={{ padding: 0.1 }}
+          minZoom={0.5}
+          maxZoom={2}
           deleteKeyCode={null} // Prevent accidental keyboard deletion
           proOptions={{ hideAttribution: true }}
           style={{ background: "hsl(var(--background))" }}

@@ -31,7 +31,7 @@ function MessageNodeComponent({ id, data, selected }: NodeProps) {
   return (
     <div
       className={`
-        relative w-72 bg-card text-card-foreground
+        relative w-64 bg-card text-card-foreground
         transition-all duration-150
         ${isFinal
           ? "border-2 border-destructive shadow-[0_0_20px_rgba(220,38,38,0.25)]"
@@ -54,14 +54,14 @@ function MessageNodeComponent({ id, data, selected }: NodeProps) {
       {/* Header */}
       <div
         className={`
-          flex items-center justify-between px-4 py-2.5
+          flex items-center justify-between px-3 py-2
           ${isFinal ? "bg-destructive/10 border-b border-destructive/30" : "bg-secondary border-b border-border/60"}
         `}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <span
             className={`
-              inline-flex items-center justify-center w-6 h-6 text-[10px] font-bold
+              inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold
               ${isFinal
                 ? "bg-destructive text-white"
                 : "bg-primary text-primary-foreground"
@@ -70,7 +70,7 @@ function MessageNodeComponent({ id, data, selected }: NodeProps) {
           >
             {step}
           </span>
-          <span className="text-sm font-semibold tracking-wider uppercase">
+          <span className="text-xs font-semibold tracking-wider uppercase">
             {isFinal ? "Encerramento" : `Passo ${step}`}
           </span>
         </div>
@@ -85,7 +85,7 @@ function MessageNodeComponent({ id, data, selected }: NodeProps) {
       </div>
 
       {/* Textarea body */}
-      <div className="p-3">
+      <div className="p-2.5">
         <textarea
           value={message_text}
           onChange={handleChange}
@@ -94,11 +94,11 @@ function MessageNodeComponent({ id, data, selected }: NodeProps) {
               ? "Última mensagem antes do encerramento do fluxo..."
               : `Mensagem do dia ${step}...`
           }
-          rows={4}
+          rows={3}
           className={`
-            nodrag nowheel w-full resize-none bg-background/60 text-sm text-foreground
+            nodrag nowheel w-full resize-none bg-background/60 text-xs text-foreground
             placeholder:text-muted-foreground/50
-            border focus:outline-none focus:ring-0 p-2.5 leading-relaxed
+            border focus:outline-none focus:ring-0 p-2 leading-relaxed
             transition-colors
             ${isFinal
               ? "border-destructive/30 focus:border-destructive/60"
