@@ -77,14 +77,14 @@ export default async function FollowupLogsPage({
       <div className="max-w-4xl mx-auto px-4 sm:px-8 py-6">
 
         {/* ── Compact Header ──────────────────────────────────────────── */}
-        <header className="mb-6 pb-5 border-b border-border/30">
-          <div className="flex items-center gap-2.5 mb-1">
-            <Send className="w-4 h-4 text-primary" />
-            <h1 className="text-lg font-bold tracking-tight text-foreground">
+        <header className="mb-8 pb-6 border-b border-border/30">
+          <div className="flex items-center gap-3 mb-2">
+            <Send className="w-5 h-5 text-primary" />
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Follow-up <span className="text-primary">Timeline</span>
             </h1>
           </div>
-          <p className="text-xs text-muted-foreground ml-6.5 leading-relaxed">
+          <p className="text-sm text-muted-foreground ml-8 leading-relaxed">
             Disparos automáticos do n8n para leads B2B
           </p>
         </header>
@@ -123,7 +123,7 @@ export default async function FollowupLogsPage({
           </div>
         ) : (
           /* ── Timeline ─────────────────────────────────────────────── */
-          <div className="relative border-l border-border/30 ml-3 pl-6 pb-8 space-y-5">
+          <div className="relative border-l border-border/30 ml-4 pl-8 pb-10 space-y-6">
             {logs.map((log: FollowupLog, index: number) => {
               const date = new Date(log.created_at);
               const isSent =
@@ -134,43 +134,43 @@ export default async function FollowupLogsPage({
               return (
                 <article key={log.id || index} className="relative group">
                   {/* Timeline Dot */}
-                  <div className="absolute -left-[25px] top-2 w-2 h-2 bg-primary ring-2 ring-background group-hover:scale-150 group-hover:shadow-[0_0_8px_rgba(93,194,32,0.7)] transition-all duration-200" />
+                  <div className="absolute -left-[37px] top-2.5 w-2.5 h-2.5 bg-primary ring-4 ring-background group-hover:scale-150 group-hover:shadow-[0_0_8px_rgba(93,194,32,0.7)] transition-all duration-200" />
 
                   {/* Timestamp */}
-                  <time className="block text-[10px] text-primary font-mono mb-1.5 tracking-widest uppercase">
+                  <time className="block text-xs text-primary font-mono mb-2 tracking-widest uppercase font-semibold">
                     {format(date, "dd MMM yyyy • HH:mm", { locale: ptBR })}
                   </time>
 
                   {/* Card */}
                   <div className="bg-card border border-border/25 hover:border-primary/40 transition-colors duration-200 relative overflow-hidden">
                     {/* Corner accent */}
-                    <div className="absolute top-0 right-0 w-10 h-10 bg-gradient-to-bl from-primary/8 to-transparent pointer-events-none" />
+                    <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-bl from-primary/8 to-transparent pointer-events-none" />
 
                     {/* Card header */}
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/20">
+                    <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/20">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-semibold text-foreground tracking-tight">
+                        <span className="font-mono text-base font-bold text-foreground tracking-tight">
                           {formatPhone(log.phone || log.telefone)}
                         </span>
                       </div>
 
                       {/* Status badge */}
                       {isSent ? (
-                        <div className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-primary/20">
-                          <CheckCircle2 className="w-3 h-3" />
+                        <div className="flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 text-xs font-bold uppercase tracking-wider border border-primary/20">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
                           Enviado
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1 bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-border/40">
-                          <AlertCircle className="w-3 h-3" />
+                        <div className="flex items-center gap-1.5 bg-muted text-muted-foreground px-2.5 py-1 text-xs font-bold uppercase tracking-wider border border-border/40">
+                          <AlertCircle className="w-3.5 h-3.5" />
                           {log.status || "Pendente"}
                         </div>
                       )}
                     </div>
 
                     {/* Message body */}
-                    <div className="px-4 py-3">
-                      <p className="text-muted-foreground text-xs font-mono leading-relaxed whitespace-pre-wrap border-l-2 border-primary/25 pl-3">
+                    <div className="px-5 py-4">
+                      <p className="text-muted-foreground text-sm font-mono leading-relaxed whitespace-pre-wrap border-l-2 border-primary/30 pl-4">
                         {log.message || log.mensagem || log.spintax || (
                           <span className="italic opacity-50">Mensagem não registrada.</span>
                         )}

@@ -58,7 +58,7 @@ export function FollowupFilters() {
   const activeDate = searchParams.get("date") || "";
 
   const quickFilterClass = (value: string) =>
-    `px-3 py-1.5 text-xs font-semibold border tracking-wide uppercase transition-all duration-150 ${
+    `px-4 py-2 text-sm font-bold border tracking-wide uppercase transition-all duration-150 ${
       activeDate === value
         ? "bg-primary text-primary-foreground border-primary"
         : "bg-transparent border-border/40 text-muted-foreground hover:text-foreground hover:border-muted-foreground"
@@ -73,14 +73,14 @@ export function FollowupFilters() {
           onSubmit={handlePhoneSearch}
           className="relative flex-1 group"
         >
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
           <input
             id="followup-phone-search"
             type="text"
             placeholder="Buscar por telefone..."
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full bg-card border border-border/40 focus:border-primary focus:ring-1 focus:ring-primary/50 rounded-none pl-9 pr-8 py-2 text-sm outline-none transition-all placeholder:text-muted-foreground/60"
+            className="w-full bg-card border border-border/40 focus:border-primary focus:ring-1 focus:ring-primary/50 rounded-none pl-10 pr-10 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60"
           />
           {phone && (
             <button
@@ -97,7 +97,10 @@ export function FollowupFilters() {
         <div className="flex gap-1.5 shrink-0">
           <button
             id="filter-todos"
-            onClick={() => updateParams({ date: "" })}
+            onClick={() => {
+              setPhone("");
+              updateParams({ date: "", phone: "" });
+            }}
             className={quickFilterClass("")}
           >
             Todos
@@ -122,17 +125,17 @@ export function FollowupFilters() {
             <PopoverTrigger asChild>
               <button
                 id="filter-date-picker"
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border tracking-wide uppercase transition-all duration-150 ${
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-bold border tracking-wide uppercase transition-all duration-150 ${
                   isCustomDate
                     ? "bg-primary text-primary-foreground border-primary"
                     : "bg-transparent border-border/40 text-muted-foreground hover:text-foreground hover:border-muted-foreground"
                 }`}
               >
-                <CalendarDays className="w-3.5 h-3.5" />
+                <CalendarDays className="w-4 h-4" />
                 {isCustomDate && selectedDate
                   ? format(selectedDate, "dd/MM/yy", { locale: ptBR })
                   : "Data"}
-                <ChevronDown className="w-3 h-3 opacity-60" />
+                <ChevronDown className="w-3.5 h-3.5 opacity-60" />
               </button>
             </PopoverTrigger>
             <PopoverContent
