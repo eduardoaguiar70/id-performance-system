@@ -27,16 +27,20 @@ type FollowupFlow = {
   id?: string;
   label: FlowLabel;
   step: number;
+  message_order: number;
   message_text: string;
 };
+
+type MessagesTriple = [string, string, string];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const NODE_TYPES = { messageNode: MessageNode };
 
 const MAX_STEPS = 7;
 const NODE_GAP = 60;
-const NODE_HEIGHT = 120;
+const NODE_HEIGHT = 330;
 const NODE_TOTAL_HEIGHT = NODE_HEIGHT + NODE_GAP;
+const EMPTY_MESSAGES: MessagesTriple = ["", "", ""];
 
 function buildEdge(sourceId: string, targetId: string): Edge {
   return {
@@ -54,25 +58,46 @@ function buildEdge(sourceId: string, targetId: string): Edge {
   };
 }
 
+/**
+ * Groups flat DB rows by step, filling a [msg1, msg2, msg3] triple.
+ * Rows must already be sorted by step asc, message_order asc.
+ */
 function buildNodes(
   rows: FollowupFlow[],
   label: FlowLabel,
   onDelete: (id: string) => void,
-  onMessageChange: (id: string, value: string) => void
+  onMessageChange: (id: string, index: number, value: string) => void
 ): Node[] {
-  // Sort by step ascending
-  const sorted = [...rows].sort((a, b) => a.step - b.step);
-  return sorted.map((row, idx) => {
-    const isFinal = row.step === MAX_STEPS;
-    const xOffset = isFinal ? 40 : 0; // slight indent for final node
+  // Group by step → MessagesTriple
+  const stepsMap = new Map<number, MessagesTriple>();
+
+  for (const row of rows) {
+    if (!stepsMap.has(row.step)) {
+      stepsMap.set(row.step, ["", "", ""]);
+    }
+    const triple = stepsMap.get(row.step)!;
+    const idx = row.message_order - 1;
+    if (idx >= 0 && idx < 3) {
+      triple[idx] = row.message_text;
+    }
+  }
+
+  const sortedSteps = Array.from(stepsMap.keys()).sort((a, b) => a - b);
+
+  return sortedSteps.map((step, idx) => {
+    const isFinal = step === MAX_STEPS;
+    const xOffset = isFinal ? 40 : 0;
+    const nodeId = `${label}-step-${step}`;
+    const messages = stepsMap.get(step)!;
+
     return {
-      id: `${label}-step-${row.step}`,
+      id: nodeId,
       type: "messageNode",
       position: { x: 100 + xOffset, y: 60 + idx * NODE_TOTAL_HEIGHT },
       data: {
-        step: row.step,
+        step,
         label,
-        message_text: row.message_text,
+        messages,
         isFinal,
         onDelete,
         onMessageChange,
@@ -97,8 +122,8 @@ export function FlowBuilderClient() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [isLoading, setIsLoading] = useState(true);
 
-  // Keep track of messages outside of node data to avoid stale closures
-  const messagesRef = useRef<Map<string, string>>(new Map());
+  // Tracks the 3 messages per node id to avoid stale closures in callbacks
+  const messagesRef = useRef<Map<string, MessagesTriple>>(new Map());
 
   // ─── Callbacks ──────────────────────────────────────────────────────────────
 
@@ -106,7 +131,6 @@ export function FlowBuilderClient() {
     (id: string) => {
       setNodes((nds) => {
         const remaining = nds.filter((n) => n.id !== id);
-        // Rebuild with re-indexed steps
         return remaining.map((n, idx) => {
           const step = idx + 1;
           const isFinal = step === MAX_STEPS;
@@ -127,12 +151,15 @@ export function FlowBuilderClient() {
   );
 
   const handleMessageChange = useCallback(
-    (id: string, value: string) => {
-      messagesRef.current.set(id, value);
+    (id: string, index: number, value: string) => {
+      const current = messagesRef.current.get(id) ?? [...EMPTY_MESSAGES] as MessagesTriple;
+      const updated: MessagesTriple = [current[0], current[1], current[2]];
+      updated[index] = value;
+      messagesRef.current.set(id, updated);
       setNodes((nds) =>
         nds.map((n) =>
           n.id === id
-            ? { ...n, data: { ...(n.data as object), message_text: value } }
+            ? { ...n, data: { ...(n.data as object), messages: updated } }
             : n
         )
       );
@@ -140,32 +167,37 @@ export function FlowBuilderClient() {
     [setNodes]
   );
 
-  // Memoize stable callbacks to avoid infinite re-renders in node data
-  const stableDelete = useCallback(handleDelete, []); // eslint-disable-line
-  const stableChange = useCallback(handleMessageChange, []); // eslint-disable-line
+  // Stable refs so node data callbacks don't trigger infinite re-renders
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stableDelete = useCallback(handleDelete, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stableChange = useCallback(handleMessageChange, []);
 
   // ─── Load from Supabase ──────────────────────────────────────────────────────
   const loadFlow = useCallback(
     async (label: FlowLabel) => {
       setIsLoading(true);
+      messagesRef.current.clear();
+
       const { data, error } = await supabase
         .from("followup_flows")
         .select("*")
         .eq("label", label)
-        .order("step", { ascending: true });
+        .order("step", { ascending: true })
+        .order("message_order", { ascending: true });
 
       if (error || !data) {
         setIsLoading(false);
         return;
       }
 
-      const builtNodes = buildNodes(data, label, stableDelete, stableChange);
+      const builtNodes = buildNodes(data as FollowupFlow[], label, stableDelete, stableChange);
       const builtEdges = buildEdgesFromNodes(builtNodes);
 
       // Sync messages ref
       builtNodes.forEach((n) => {
         const d = n.data as MessageNodeData;
-        messagesRef.current.set(n.id, d.message_text);
+        messagesRef.current.set(n.id, d.messages);
       });
 
       setNodes(builtNodes);
@@ -187,6 +219,8 @@ export function FlowBuilderClient() {
 
       const isFinal = nextStep === MAX_STEPS;
       const newId = `${activeLabel}-step-${nextStep}`;
+      const emptyMessages: MessagesTriple = ["", "", ""];
+
       const newNode: Node = {
         id: newId,
         type: "messageNode",
@@ -197,63 +231,83 @@ export function FlowBuilderClient() {
         data: {
           step: nextStep,
           label: activeLabel,
-          message_text: "",
+          messages: emptyMessages,
           isFinal,
           onDelete: stableDelete,
           onMessageChange: stableChange,
         } satisfies MessageNodeData,
       };
 
-      messagesRef.current.set(newId, "");
+      messagesRef.current.set(newId, emptyMessages);
 
       const updatedNodes = [...nds, newNode];
-
-      // Rebuild edges
       setEdges(buildEdgesFromNodes(updatedNodes));
-
       return updatedNodes;
     });
   }, [activeLabel, stableDelete, stableChange, setNodes, setEdges]);
 
-  // ─── Save ────────────────────────────────────────────────────────────────────
+  // ─── Save — granular upsert/delete per message_order ─────────────────────────
   const handleSave = useCallback(async () => {
     setSaveStatus("saving");
 
-    const payload: Omit<FollowupFlow, "id">[] = nodes.map((n) => {
-      const d = n.data as MessageNodeData;
-      return {
-        label: activeLabel,
-        step: d.step,
-        message_text: d.message_text,
-      };
-    });
+    const upserts: Omit<FollowupFlow, "id">[] = [];
+    const deletes: { step: number; message_order: number }[] = [];
 
-    // Delete existing records for this label, then insert fresh ones
-    const { error: delError } = await supabase
-      .from("followup_flows")
-      .delete()
-      .eq("label", activeLabel);
+    for (const node of nodes) {
+      const d = node.data as MessageNodeData;
+      const messages = messagesRef.current.get(node.id) ?? [...EMPTY_MESSAGES] as MessagesTriple;
 
-    if (delError) {
-      setSaveStatus("error");
-      setTimeout(() => setSaveStatus("idle"), 3000);
-      return;
-    }
+      for (let i = 0; i < 3; i++) {
+        const message_order = i + 1;
+        const text = messages[i]?.trim() ?? "";
 
-    if (payload.length > 0) {
-      const { error: insError } = await supabase
-        .from("followup_flows")
-        .insert(payload);
-
-      if (insError) {
-        setSaveStatus("error");
-        setTimeout(() => setSaveStatus("idle"), 3000);
-        return;
+        if (text.length > 0) {
+          upserts.push({
+            label: activeLabel,
+            step: d.step,
+            message_order,
+            message_text: text,
+          });
+        } else {
+          deletes.push({ step: d.step, message_order });
+        }
       }
     }
 
-    setSaveStatus("success");
-    setTimeout(() => setSaveStatus("idle"), 3000);
+    try {
+      // Upsert all filled messages in one batch
+      if (upserts.length > 0) {
+        const { error: upsertError } = await supabase
+          .from("followup_flows")
+          .upsert(upserts, { onConflict: "label,step,message_order" });
+
+        if (upsertError) throw upsertError;
+      }
+
+      // Delete empty slots concurrently to avoid stale records
+      if (deletes.length > 0) {
+        const deleteResults = await Promise.all(
+          deletes.map(({ step, message_order }) =>
+            supabase
+              .from("followup_flows")
+              .delete()
+              .eq("label", activeLabel)
+              .eq("step", step)
+              .eq("message_order", message_order)
+          )
+        );
+
+        const deleteError = deleteResults.find((r) => r.error)?.error;
+        if (deleteError) throw deleteError;
+      }
+
+      setSaveStatus("success");
+    } catch (error) {
+      console.error("Save Error Details:", error);
+      setSaveStatus("error");
+    } finally {
+      setTimeout(() => setSaveStatus("idle"), 3000);
+    }
   }, [nodes, activeLabel]);
 
   const onConnect = useCallback(
@@ -295,7 +349,7 @@ export function FlowBuilderClient() {
             Disparo:{" "}
             <span className="text-foreground font-medium">{intervalLabel}</span>
             {" · "}
-            {nodes.length} / {MAX_STEPS} passos
+            {nodes.length} / {MAX_STEPS} passos · até 3 mensagens por passo
           </p>
         </div>
 
@@ -395,15 +449,15 @@ export function FlowBuilderClient() {
           fitViewOptions={{ padding: 0.1 }}
           minZoom={0.5}
           maxZoom={2}
-          deleteKeyCode={null} // Prevent accidental keyboard deletion
+          deleteKeyCode={null}
           proOptions={{ hideAttribution: true }}
           style={{ background: "hsl(var(--background))" }}
         >
           <Background
             variant={BackgroundVariant.Dots}
-            gap={24}
-            size={1}
-            color="hsl(var(--border))"
+            gap={20}
+            size={1.5}
+            color="hsl(var(--muted-foreground) / 0.25)"
           />
           <Controls
             className="[&>button]:bg-card [&>button]:border-border [&>button]:text-foreground [&>button:hover]:bg-secondary"
@@ -424,10 +478,10 @@ export function FlowBuilderClient() {
         </ReactFlow>
 
         {/* Legend */}
-        <div className="absolute bottom-4 left-4 z-10 flex flex-col gap-1.5 bg-card border border-border/60 p-3 text-[10px] text-muted-foreground uppercase tracking-wider">
+        <div className="absolute bottom-4 left-4 z-10 flex flex-col gap-1.5 bg-card border border-border/60 p-3 text-[10px] text-muted-foreground uppercase tracking-wider font-mono">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 inline-block bg-primary" />
-            Passo normal
+            Passo normal · até 3 disparos
           </div>
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 inline-block bg-destructive" />

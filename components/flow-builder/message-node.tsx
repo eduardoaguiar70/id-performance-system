@@ -6,23 +6,18 @@ import { X } from "lucide-react";
 
 export type MessageNodeData = {
   step: number;
-  label: string; // 'LEAD' | 'SUSPECT'
-  message_text: string;
+  label: string;
+  messages: [string, string, string];
   isFinal: boolean;
   onDelete: (id: string) => void;
-  onMessageChange: (id: string, value: string) => void;
+  onMessageChange: (id: string, index: number, value: string) => void;
 };
+
+const MESSAGE_LABELS = ["MENSAGEM 1", "MENSAGEM 2", "MENSAGEM 3"] as const;
 
 function MessageNodeComponent({ id, data, selected }: NodeProps) {
   const nodeData = data as unknown as MessageNodeData;
-  const { step, isFinal, message_text, onDelete, onMessageChange } = nodeData;
-
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      onMessageChange(id, e.target.value);
-    },
-    [id, onMessageChange]
-  );
+  const { step, isFinal, messages, onDelete, onMessageChange } = nodeData;
 
   const handleDelete = useCallback(() => {
     onDelete(id);
@@ -31,13 +26,14 @@ function MessageNodeComponent({ id, data, selected }: NodeProps) {
   return (
     <div
       className={`
-        relative w-64 bg-card text-card-foreground
+        relative w-[300px] bg-card text-card-foreground
         transition-all duration-150
-        ${isFinal
-          ? "border-2 border-destructive shadow-[0_0_20px_rgba(220,38,38,0.25)]"
-          : selected
-          ? "border-2 border-primary shadow-[0_0_20px_rgba(93,194,32,0.2)]"
-          : "border border-border/60"
+        ${
+          isFinal
+            ? "border-2 border-destructive shadow-[0_0_20px_rgba(220,38,38,0.25)]"
+            : selected
+            ? "border-2 border-primary shadow-[0_0_20px_rgba(93,194,32,0.2)]"
+            : "border border-border/60"
         }
       `}
       style={{ borderRadius: 0 }}
@@ -55,22 +51,23 @@ function MessageNodeComponent({ id, data, selected }: NodeProps) {
       <div
         className={`
           flex items-center justify-between px-3 py-2
-          ${isFinal ? "bg-destructive/10 border-b border-destructive/30" : "bg-secondary border-b border-border/60"}
+          ${
+            isFinal
+              ? "bg-destructive/10 border-b border-destructive/30"
+              : "bg-secondary border-b border-border/60"
+          }
         `}
       >
         <div className="flex items-center gap-2">
           <span
             className={`
               inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold
-              ${isFinal
-                ? "bg-destructive text-white"
-                : "bg-primary text-primary-foreground"
-              }
+              ${isFinal ? "bg-destructive text-white" : "bg-primary text-primary-foreground"}
             `}
           >
             {step}
           </span>
-          <span className="text-xs font-semibold tracking-wider uppercase">
+          <span className="text-xs font-semibold tracking-wider uppercase font-mono">
             {isFinal ? "Encerramento" : `Passo ${step}`}
           </span>
         </div>
@@ -84,31 +81,23 @@ function MessageNodeComponent({ id, data, selected }: NodeProps) {
         </button>
       </div>
 
-      {/* Textarea body */}
-      <div className="p-2.5">
-        <textarea
-          value={message_text}
-          onChange={handleChange}
-          placeholder={
-            isFinal
-              ? "Última mensagem antes do encerramento do fluxo..."
-              : `Mensagem do dia ${step}...`
-          }
-          rows={3}
-          className={`
-            nodrag nowheel w-full resize-none bg-background/60 text-xs text-foreground
-            placeholder:text-muted-foreground/50
-            border focus:outline-none focus:ring-0 p-2 leading-relaxed
-            transition-colors
-            ${isFinal
-              ? "border-destructive/30 focus:border-destructive/60"
-              : "border-border/40 focus:border-primary/60"
-            }
-          `}
-          style={{ borderRadius: 0 }}
-        />
+      {/* Multi-message body */}
+      <div className="p-2.5 flex flex-col gap-2.5">
+        {MESSAGE_LABELS.map((labelText, i) => (
+          <MessageField
+            key={i}
+            nodeId={id}
+            index={i}
+            label={labelText}
+            value={messages[i] ?? ""}
+            isFinal={isFinal}
+            step={step}
+            onMessageChange={onMessageChange}
+          />
+        ))}
+
         {isFinal && (
-          <p className="mt-1.5 text-[10px] text-destructive/80 font-medium tracking-wide uppercase">
+          <p className="mt-0.5 text-[10px] text-destructive/80 font-mono font-medium tracking-wide uppercase">
             ⚠ Máximo de 7 passos atingido
           </p>
         )}
@@ -125,5 +114,72 @@ function MessageNodeComponent({ id, data, selected }: NodeProps) {
     </div>
   );
 }
+
+// ─── Sub-component: individual message field ─────────────────────────────────
+
+type MessageFieldProps = {
+  nodeId: string;
+  index: number;
+  label: string;
+  value: string;
+  isFinal: boolean;
+  step: number;
+  onMessageChange: (id: string, index: number, value: string) => void;
+};
+
+const MessageField = memo(function MessageField({
+  nodeId,
+  index,
+  label,
+  value,
+  isFinal,
+  step,
+  onMessageChange,
+}: MessageFieldProps) {
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      onMessageChange(nodeId, index, e.target.value);
+    },
+    [nodeId, index, onMessageChange]
+  );
+
+  return (
+    <div>
+      {/* Brutalist label row */}
+      <div className="flex items-center gap-1.5 mb-1">
+        <span className="font-mono text-[9px] font-bold tracking-[0.12em] text-muted-foreground uppercase shrink-0">
+          {label}
+        </span>
+        <div className="flex-1 h-px bg-border/50" />
+      </div>
+
+      {/* Textarea */}
+      <textarea
+        value={value}
+        onChange={handleChange}
+        placeholder={
+          index === 0
+            ? isFinal
+              ? "Última mensagem antes do encerramento..."
+              : `Mensagem principal do passo ${step}...`
+            : `Disparo sequencial ${index + 1}...`
+        }
+        rows={3}
+        className={`
+          nodrag nowheel w-full resize-none bg-background/60 text-xs text-foreground font-mono
+          placeholder:text-muted-foreground/40
+          border focus:outline-none focus:ring-0 p-2 leading-relaxed
+          transition-colors
+          ${
+            isFinal
+              ? "border-destructive/30 focus:border-destructive/60"
+              : "border-border/40 focus:border-primary/60"
+          }
+        `}
+        style={{ borderRadius: 0 }}
+      />
+    </div>
+  );
+});
 
 export const MessageNode = memo(MessageNodeComponent);

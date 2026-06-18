@@ -47,7 +47,8 @@ export default async function FollowupLogsPage({
   let query = supabase
     .from("followup_logs")
     .select("*")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(100);
 
   if (searchParams.phone) {
     query = query.ilike("phone", `%${searchParams.phone}%`);
@@ -55,21 +56,24 @@ export default async function FollowupLogsPage({
 
   const dateParam = searchParams.date;
 
-  if (dateParam === "hoje") {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    query = query.gte("created_at", today.toISOString());
-  } else if (dateParam === "7dias") {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    query = query.gte("created_at", d.toISOString());
-  } else if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-    // Specific date: from 00:00 to 23:59:59
-    const start = new Date(dateParam + "T00:00:00");
-    const end = new Date(dateParam + "T23:59:59");
-    query = query
-      .gte("created_at", start.toISOString())
-      .lte("created_at", end.toISOString());
+  // Garante que o filtro seja aplicado apenas se houver um período válido especificado
+  if (dateParam && dateParam !== "todos" && dateParam !== "") {
+    if (dateParam === "hoje") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      query = query.gte("created_at", today.toISOString());
+    } else if (dateParam === "7dias") {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      query = query.gte("created_at", d.toISOString());
+    } else if (typeof dateParam === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      // Data específica: do início (00:00:00) ao fim do dia (23:59:59)
+      const start = new Date(dateParam + "T00:00:00");
+      const end = new Date(dateParam + "T23:59:59");
+      query = query
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString());
+    }
   }
 
   const { data: logs, error } = await query;
