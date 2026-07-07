@@ -121,6 +121,9 @@ export function LeadsTable() {
         .order("followers_count", { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
 
+      // Oculta leads que sofreram soft-delete
+      query = query.neq("deleted", true)
+
       // Filtro de status
       if (filters.status !== "all") {
         query = query.eq("status", filters.status)
@@ -246,7 +249,7 @@ export function LeadsTable() {
     if (!window.confirm(`Tem certeza que deseja excluir o lead @${lead.instagram_username}?`)) return
 
     const toastId = toast.loading("Excluindo lead...")
-    const { error } = await supabase.from("leads").delete().eq("id", lead.id)
+    const { error } = await supabase.from("leads").update({ deleted: true }).eq("id", lead.id)
 
     if (error) {
       toast.error("Erro ao excluir lead.", { id: toastId })

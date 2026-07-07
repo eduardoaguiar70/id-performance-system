@@ -25,6 +25,7 @@ export interface Lead {
   erro_msg?: string | null
   selected: boolean
   selected_at: string | null
+  deleted?: boolean
   scraped_at: string
   created_at: string
   updated_at: string
