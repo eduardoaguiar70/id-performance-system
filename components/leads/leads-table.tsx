@@ -580,7 +580,7 @@ export function LeadsTable() {
                 </TableRow>
               ) : (
                 leads.map((lead) => {
-                  const statusCfg = getStatusConfig(lead.status)
+                  const statusCfg = getStatusConfig(lead.status, lead.erro_msg)
                   const isSelected = selectedIds.has(lead.id)
 
                   return (

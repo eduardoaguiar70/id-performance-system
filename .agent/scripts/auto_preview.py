@@ -27,11 +27,18 @@ def get_project_root():
     return Path(".").resolve()
 
 def is_running(pid):
-    try:
-        os.kill(pid, 0)
-        return True
-    except OSError:
-        return False
+    if sys.platform == 'win32':
+        try:
+            out = subprocess.check_output(f'tasklist /FI "PID eq {pid}"', shell=True).decode('utf-8', errors='ignore')
+            return str(pid) in out
+        except Exception:
+            return False
+    else:
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
 
 def get_start_command(root):
     pkg_file = root / "package.json"
@@ -53,7 +60,7 @@ def start_server(port=3000):
         try:
             pid = int(PID_FILE.read_text().strip())
             if is_running(pid):
-                print(f"⚠️  Preview already running (PID: {pid})")
+                print(f"[WARN] Preview already running (PID: {pid})")
                 return
         except:
             pass # Invalid PID file
@@ -62,33 +69,42 @@ def start_server(port=3000):
     cmd = get_start_command(root)
     
     if not cmd:
-        print("❌ No 'dev' or 'start' script found in package.json")
+        print("[X] No 'dev' or 'start' script found in package.json")
         sys.exit(1)
     
     # Add port env var if needed (simple heuristic)
     env = os.environ.copy()
     env["PORT"] = str(port)
     
-    print(f"🚀 Starting preview on port {port}...")
+    print(f"[*] Starting preview on port {port}...")
     
-    with open(LOG_FILE, "w") as log:
-        process = subprocess.Popen(
-            cmd,
-            cwd=str(root),
-            stdout=log,
-            stderr=log,
-            env=env,
-            shell=True # Required for npm on windows often, or consistent path handling
-        )
+    if isinstance(cmd, list) and sys.platform == 'win32':
+        cmd = subprocess.list2cmdline(cmd)
+
+    log = open(LOG_FILE, "w")
+    
+    creationflags = 0
+    if sys.platform == 'win32':
+        creationflags = getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0x00000200) | getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+
+    process = subprocess.Popen(
+        cmd,
+        cwd=str(root),
+        stdout=log,
+        stderr=log,
+        env=env,
+        shell=True, # Required for npm on windows often, or consistent path handling
+        creationflags=creationflags
+    )
     
     PID_FILE.write_text(str(process.pid))
-    print(f"✅ Preview started! (PID: {process.pid})")
+    print(f"[OK] Preview started! (PID: {process.pid})")
     print(f"   Logs: {LOG_FILE}")
     print(f"   URL: http://localhost:{port}")
 
 def stop_server():
     if not PID_FILE.exists():
-        print("ℹ️  No preview server found.")
+        print("[INFO] No preview server found.")
         return
 
     try:
@@ -96,11 +112,11 @@ def stop_server():
         if is_running(pid):
             # Try gentle kill first
             os.kill(pid, signal.SIGTERM) if sys.platform != 'win32' else subprocess.call(['taskkill', '/F', '/T', '/PID', str(pid)])
-            print(f"🛑 Preview stopped (PID: {pid})")
+            print(f"[OK] Preview stopped (PID: {pid})")
         else:
-            print("ℹ️  Process was not running.")
+            print("[INFO] Process was not running.")
     except Exception as e:
-        print(f"❌ Error stopping server: {e}")
+        print(f"[X] Error stopping server: {e}")
     finally:
         if PID_FILE.exists():
             PID_FILE.unlink()
@@ -122,12 +138,12 @@ def status_server():
             
     print("\n=== Preview Status ===")
     if running:
-        print(f"✅ Status: Running")
-        print(f"🔢 PID: {pid}")
-        print(f"🌐 URL: {url} (Likely)")
-        print(f"📝 Logs: {LOG_FILE}")
+        print(f"[OK] Status: Running")
+        print(f"   PID: {pid}")
+        print(f"   URL: {url} (Likely)")
+        print(f"   Logs: {LOG_FILE}")
     else:
-        print("⚪ Status: Stopped")
+        print("[-] Status: Stopped")
     print("===================\n")
 
 def main():

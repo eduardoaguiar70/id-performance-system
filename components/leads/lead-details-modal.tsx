@@ -77,7 +77,13 @@ const DEFAULT_STATUS_CONFIG = {
 }
 
 /** Retorna a configuração de exibição do status, com fallback seguro */
-function getStatusConfig(status: string) {
+function getStatusConfig(status: string, erro_msg?: string | null) {
+  if (erro_msg) {
+    return {
+      label: "Erro",
+      className: "bg-red-500/10 text-red-400 border-red-500/20",
+    }
+  }
   return STATUS_CONFIG[status?.toLowerCase()] ?? DEFAULT_STATUS_CONFIG
 }
 
@@ -98,7 +104,7 @@ export function LeadDetailsModal({
 
   if (!lead) return null
 
-  const statusCfg = getStatusConfig(lead.status)
+  const statusCfg = getStatusConfig(lead.status, lead.erro_msg)
 
   // ── Aprovar lead direto do modal ──
   const handleApprove = async () => {
