@@ -17,7 +17,7 @@ import { ptBR } from "date-fns/locale"
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const WEBHOOK    = "https://n8n-n8n.aqzjch.easypanel.host/webhook/executar-scraper"
+const WEBHOOK    = "https://n8n-n8n-start.kfocge.easypanel.host/webhook/executar-scraper"
 const POLL_MS    = 8_000
 const TIMEOUT_MS = 10 * 60 * 1_000  // 10 minutos
 
