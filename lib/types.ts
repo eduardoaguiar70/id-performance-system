@@ -85,3 +85,16 @@ export interface Meeting {
   next_steps: string[]
 }
 
+/**
+ * Representa um script do agente de IA (tabela `agent_scripts`)
+ * Apenas o campo `content` é editável pelo usuário.
+ */
+export interface AgentScript {
+  id: number
+  script_key: string       // identificador técnico — não exibir, não editar
+  label: string            // nome amigável para exibição
+  content: string          // corpo do script editável
+  updated_at: string | null
+  updated_by: string | null
+}
+

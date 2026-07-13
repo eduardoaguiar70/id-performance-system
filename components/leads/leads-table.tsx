@@ -85,6 +85,13 @@ export function LeadsTable() {
   const [modalLead, setModalLead] = useState<Lead | null>(null)
   const [editingLead, setEditingLead] = useState<Lead | null>(null)
 
+  // ── Estatísticas ──
+  const [stats, setStats] = useState({
+    pending: 0,
+    approached: 0,
+    error: 0,
+  })
+
   // ── Paginação ──
   const [page, setPage] = useState(0) // 0-indexed
 
@@ -165,10 +172,52 @@ export function LeadsTable() {
     }
   }, [filters, page])
 
+  // ──────────────────────────────────────────
+  // Buscar Estatísticas Gerais
+  // ──────────────────────────────────────────
+  const fetchStats = useCallback(async () => {
+    try {
+      const [
+        { count: pendingCount },
+        { count: approachedCount },
+        { count: errorCount }
+      ] = await Promise.all([
+        supabase
+          .from("leads")
+          .select("*", { count: "exact", head: true })
+          .neq("deleted", true)
+          .in("status", ["pending", "pendente"]),
+        supabase
+          .from("leads")
+          .select("*", { count: "exact", head: true })
+          .neq("deleted", true)
+          .in("status", ["approached", "abordado"]),
+        supabase
+          .from("leads")
+          .select("*", { count: "exact", head: true })
+          .neq("deleted", true)
+          .in("status", ["error", "erro"])
+      ])
+
+      setStats({
+        pending: pendingCount || 0,
+        approached: approachedCount || 0,
+        error: errorCount || 0,
+      })
+    } catch (err) {
+      console.error("[LeadsTable] Erro ao buscar estatísticas:", err)
+    }
+  }, [])
+
   // Carrega ao montar e sempre que filtros/página mudarem
   useEffect(() => {
     fetchLeads()
   }, [fetchLeads])
+
+  // Carrega as estatísticas ao montar
+  useEffect(() => {
+    fetchStats()
+  }, [fetchStats])
 
   // ──────────────────────────────────────────
   // Realtime: novo lead inserido pelo WF1
@@ -186,7 +235,15 @@ export function LeadsTable() {
             setLeads((prev) => [newLead, ...prev.slice(0, PAGE_SIZE - 1)])
             setTotalCount((c) => c + 1)
             toast.info(`Novo lead scraped: @${newLead.instagram_username}`)
+            fetchStats() // Atualiza estatísticas
           }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "leads" },
+        () => {
+          fetchStats() // Atualiza estatísticas se status mudar
         }
       )
       .subscribe()
@@ -240,6 +297,7 @@ export function LeadsTable() {
     toast.success(`${ids.length} leads aprovados!`, { id: toastId })
     setSelectedIds(new Set())
     fetchLeads()
+    fetchStats()
   }
 
   // ──────────────────────────────────────────
@@ -262,6 +320,7 @@ export function LeadsTable() {
         newSet.delete(lead.id)
         setSelectedIds(newSet)
       }
+      fetchStats()
     }
   }
 
@@ -353,6 +412,7 @@ export function LeadsTable() {
               return l
             })
           )
+          fetchStats() // Atualizar estatísticas após approach
         }
       } else {
         // Fallback caso a resposta não traga o formato esperado
@@ -394,6 +454,7 @@ export function LeadsTable() {
       next.delete(id)
       return next
     })
+    fetchStats() // Atualiza estatísticas quando status muda no modal
   }
 
   // ──────────────────────────────────────────
@@ -411,7 +472,40 @@ export function LeadsTable() {
   // Render
   // ──────────────────────────────────────────
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* ── Estatísticas (Topo) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Pending */}
+        <div className="bg-card/50 border border-border p-4 flex flex-col justify-center relative overflow-hidden group">
+          <div className="absolute inset-0 bg-yellow-500/5 transition-opacity opacity-0 group-hover:opacity-100" />
+          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-widest mb-1 z-10 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-none bg-yellow-500" />
+            Disponíveis
+          </p>
+          <p className="text-3xl font-bold z-10">{stats.pending}</p>
+        </div>
+
+        {/* Error */}
+        <div className="bg-card/50 border border-border p-4 flex flex-col justify-center relative overflow-hidden group">
+          <div className="absolute inset-0 bg-red-500/5 transition-opacity opacity-0 group-hover:opacity-100" />
+          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-widest mb-1 z-10 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-none bg-red-500" />
+            Com Erro
+          </p>
+          <p className="text-3xl font-bold z-10">{stats.error}</p>
+        </div>
+
+        {/* Approached */}
+        <div className="bg-card/50 border border-border p-4 flex flex-col justify-center relative overflow-hidden group">
+          <div className="absolute inset-0 bg-blue-500/5 transition-opacity opacity-0 group-hover:opacity-100" />
+          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-widest mb-1 z-10 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-none bg-blue-500" />
+            Abordados
+          </p>
+          <p className="text-3xl font-bold z-10">{stats.approached}</p>
+        </div>
+      </div>
+
       {/* ── Barra de Filtros ── */}
       <div className="flex flex-col sm:flex-row gap-3">
         {/* Busca */}
