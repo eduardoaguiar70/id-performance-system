@@ -68,7 +68,6 @@ const groups: NavGroup[] = [
       { name: "Follow-ups",          href: "/followup-logs", icon: Send },
       { name: "Flow Builder",         href: "/flow-builder",  icon: GitMerge },
       { name: "Scraper",              href: "/scraper",       icon: ScanSearch },
-      { name: "Scripts do Agente",    href: "/scripts",       icon: ScrollText },
     ],
   },
   {
