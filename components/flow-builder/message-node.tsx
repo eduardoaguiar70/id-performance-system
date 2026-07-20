@@ -7,13 +7,13 @@ import { X } from "lucide-react";
 export type MessageNodeData = {
   step: number;
   label: string;
-  messages: [string, string, string];
+  messages: [string, string, string, string];
   isFinal: boolean;
   onDelete: (id: string) => void;
   onMessageChange: (id: string, index: number, value: string) => void;
 };
 
-const MESSAGE_LABELS = ["MENSAGEM 1", "MENSAGEM 2", "MENSAGEM 3"] as const;
+const MESSAGE_LABELS = ["MENSAGEM 1", "MENSAGEM 2", "MENSAGEM 3", "MENSAGEM 4"] as const;
 
 function MessageNodeComponent({ id, data, selected }: NodeProps) {
   const nodeData = data as unknown as MessageNodeData;

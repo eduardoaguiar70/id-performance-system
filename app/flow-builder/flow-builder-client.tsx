@@ -31,7 +31,7 @@ type FollowupFlow = {
   message_text: string;
 };
 
-type MessagesTriple = [string, string, string];
+type MessagesTuple = [string, string, string, string];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const NODE_TYPES = { messageNode: MessageNode };
@@ -40,7 +40,7 @@ const MAX_STEPS = 7;
 const NODE_GAP = 60;
 const NODE_HEIGHT = 330;
 const NODE_TOTAL_HEIGHT = NODE_HEIGHT + NODE_GAP;
-const EMPTY_MESSAGES: MessagesTriple = ["", "", ""];
+const EMPTY_MESSAGES: MessagesTuple = ["", "", "", ""];
 
 function buildEdge(sourceId: string, targetId: string): Edge {
   return {
@@ -68,17 +68,17 @@ function buildNodes(
   onDelete: (id: string) => void,
   onMessageChange: (id: string, index: number, value: string) => void
 ): Node[] {
-  // Group by step → MessagesTriple
-  const stepsMap = new Map<number, MessagesTriple>();
+  // Group by step → MessagesTuple
+  const stepsMap = new Map<number, MessagesTuple>();
 
   for (const row of rows) {
     if (!stepsMap.has(row.step)) {
-      stepsMap.set(row.step, ["", "", ""]);
+      stepsMap.set(row.step, ["", "", "", ""]);
     }
-    const triple = stepsMap.get(row.step)!;
+    const tuple = stepsMap.get(row.step)!;
     const idx = row.message_order - 1;
-    if (idx >= 0 && idx < 3) {
-      triple[idx] = row.message_text;
+    if (idx >= 0 && idx < 4) {
+      tuple[idx] = row.message_text;
     }
   }
 
@@ -123,7 +123,7 @@ export function FlowBuilderClient() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Tracks the 3 messages per node id to avoid stale closures in callbacks
-  const messagesRef = useRef<Map<string, MessagesTriple>>(new Map());
+  const messagesRef = useRef<Map<string, MessagesTuple>>(new Map());
 
   // ─── Callbacks ──────────────────────────────────────────────────────────────
 
@@ -152,8 +152,8 @@ export function FlowBuilderClient() {
 
   const handleMessageChange = useCallback(
     (id: string, index: number, value: string) => {
-      const current = messagesRef.current.get(id) ?? [...EMPTY_MESSAGES] as MessagesTriple;
-      const updated: MessagesTriple = [current[0], current[1], current[2]];
+      const current = messagesRef.current.get(id) ?? [...EMPTY_MESSAGES] as MessagesTuple;
+      const updated: MessagesTuple = [current[0], current[1], current[2], current[3]];
       updated[index] = value;
       messagesRef.current.set(id, updated);
       setNodes((nds) =>
@@ -219,7 +219,7 @@ export function FlowBuilderClient() {
 
       const isFinal = nextStep === MAX_STEPS;
       const newId = `${activeLabel}-step-${nextStep}`;
-      const emptyMessages: MessagesTriple = ["", "", ""];
+      const emptyMessages: MessagesTuple = ["", "", "", ""];
 
       const newNode: Node = {
         id: newId,
@@ -255,9 +255,9 @@ export function FlowBuilderClient() {
 
     for (const node of nodes) {
       const d = node.data as MessageNodeData;
-      const messages = messagesRef.current.get(node.id) ?? [...EMPTY_MESSAGES] as MessagesTriple;
+      const messages = messagesRef.current.get(node.id) ?? [...EMPTY_MESSAGES] as MessagesTuple;
 
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 4; i++) {
         const message_order = i + 1;
         const text = messages[i]?.trim() ?? "";
 
@@ -349,7 +349,7 @@ export function FlowBuilderClient() {
             Disparo:{" "}
             <span className="text-foreground font-medium">{intervalLabel}</span>
             {" · "}
-            {nodes.length} / {MAX_STEPS} passos · até 3 mensagens por passo
+            {nodes.length} / {MAX_STEPS} passos · até 4 mensagens por passo
           </p>
         </div>
 
@@ -481,7 +481,7 @@ export function FlowBuilderClient() {
         <div className="absolute bottom-4 left-4 z-10 flex flex-col gap-1.5 bg-card border border-border/60 p-3 text-[10px] text-muted-foreground uppercase tracking-wider font-mono">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 inline-block bg-primary" />
-            Passo normal · até 3 disparos
+            Passo normal · até 4 disparos
           </div>
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 inline-block bg-destructive" />
