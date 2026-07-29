@@ -5,10 +5,17 @@ import { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "sonner"
 import {
   Heart, TrendingUp, Clock, CheckCircle2, Users,
   AlertTriangle, ChevronRight, XCircle, CheckCircle,
-  Bot, Sparkles, MessageCircle,
+  Bot, Sparkles, MessageCircle, Plus, CalendarClock, Pencil, RefreshCw
 } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -141,18 +148,142 @@ export default function CustomerSuccessPage() {
   const [feedbacks, setFeedbacks] = useState<FeedbackCS[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [disparosPendentes, setDisparosPendentes] = useState<any[]>([])
 
-  useEffect(() => {
-    supabase
+  // Modal States
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [clienteNome, setClienteNome] = useState("")
+  const [clienteWhatsapp, setClienteWhatsapp] = useState("")
+  const [empresa, setEmpresa] = useState("")
+  const [mensagemTexto, setMensagemTexto] = useState("")
+  const [dataAgendamento, setDataAgendamento] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Edit Modal States
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editMensagem, setEditMensagem] = useState("")
+  const [editData, setEditData] = useState("")
+
+  const fetchDisparosPendentes = async () => {
+    const { data, error } = await supabase
+      .from("nps_disparos")
+      .select("*")
+      .eq("status", "pendente")
+      .order("data_agendamento", { ascending: true })
+    if (!error && data) {
+      setDisparosPendentes(data)
+    }
+  }
+
+  const handleCriarDisparo = async () => {
+    if (!clienteNome || !clienteWhatsapp || !dataAgendamento) {
+      toast.error("Preencha os campos obrigatórios: Nome, WhatsApp e Data de Agendamento.")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const { error } = await supabase
+        .from("nps_disparos")
+        .insert({
+          cliente_nome: clienteNome,
+          cliente_whatsapp: clienteWhatsapp,
+          empresa: empresa,
+          mensagem_texto: mensagemTexto,
+          data_agendamento: dataAgendamento
+        })
+
+      if (error) throw error
+
+      toast.success("Disparo manual criado com sucesso!")
+      setIsModalOpen(false)
+      setClienteNome("")
+      setClienteWhatsapp("")
+      setEmpresa("")
+      setMensagemTexto("")
+      setDataAgendamento("")
+      fetchDisparosPendentes()
+    } catch (error: any) {
+      console.error(error)
+      toast.error("Erro ao criar disparo: " + error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleOpenEdit = (disparo: any) => {
+    setEditId(disparo.id)
+    setEditMensagem(disparo.mensagem_texto || "")
+    setEditData(disparo.data_agendamento || "")
+    setIsEditModalOpen(true)
+  }
+
+  const handleUpdateDisparo = async () => {
+    if (!editId || !editData) {
+      toast.error("A data de agendamento é obrigatória.")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const { error } = await supabase
+        .from("nps_disparos")
+        .update({
+          mensagem_texto: editMensagem,
+          data_agendamento: editData
+        })
+        .eq("id", editId)
+
+      if (error) throw error
+
+      toast.success("Disparo atualizado com sucesso!")
+      setIsEditModalOpen(false)
+      fetchDisparosPendentes()
+    } catch (error: any) {
+      console.error(error)
+      toast.error("Erro ao atualizar: " + error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const fetchFeedbacks = async () => {
+    setLoading(true)
+    const { data, error } = await supabase
       .from("feedbacks_cs")
       .select("*")
       .order("criado_em", { ascending: false })
       .limit(50)
-      .then(({ data, error }) => {
-        if (!error && data) setFeedbacks(data as FeedbackCS[])
-        setLoading(false)
-      })
+    
+    if (!error && data) {
+      setFeedbacks(data as FeedbackCS[])
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    fetchFeedbacks()
+    fetchDisparosPendentes()
   }, [])
+
+  const handleImportarNotion = async () => {
+    const toastId = toast.loading("Iniciando sincronização com o Notion...")
+    try {
+      const res = await fetch("https://n8n-n8n-start.kfocge.easypanel.host/webhook/importar-notion-nps", {
+        method: "POST"
+      })
+      if (!res.ok) throw new Error("Erro na requisição ao n8n")
+      
+      toast.success("Sincronização do Notion iniciada com sucesso!", { id: toastId })
+      
+      await fetchFeedbacks()
+      await fetchDisparosPendentes()
+    } catch (error: any) {
+      console.error(error)
+      toast.error("Erro ao iniciar sincronização.", { id: toastId })
+    }
+  }
 
   // ── Metrics ─────────────────────────────────────────────────────────────────
 
@@ -191,11 +322,92 @@ export default function CustomerSuccessPage() {
     <div className="flex-1 space-y-5 p-8 pt-6">
 
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <Heart className="h-4 w-4 text-primary" />
-        <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-          Customer Success
-        </h2>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Heart className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+            Customer Success
+          </h2>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleImportarNotion} style={{ borderRadius: "2px" }}>
+            <RefreshCw className="h-4 w-4" />
+            Importar do Notion
+          </Button>
+
+          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-2" style={{ borderRadius: "2px" }}>
+                <Plus className="h-4 w-4" />
+                Novo Disparo Manual
+              </Button>
+            </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]" style={{ borderRadius: "2px" }}>
+            <DialogHeader>
+              <DialogTitle className="text-foreground">Novo Disparo Manual</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="nome" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Nome do Cliente *</Label>
+                <Input
+                  id="nome"
+                  value={clienteNome}
+                  onChange={(e) => setClienteNome(e.target.value)}
+                  placeholder="Ex: João Silva"
+                  style={{ borderRadius: "2px" }}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="whatsapp" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">WhatsApp *</Label>
+                <Input
+                  id="whatsapp"
+                  value={clienteWhatsapp}
+                  onChange={(e) => setClienteWhatsapp(e.target.value)}
+                  placeholder="Ex: 5511999999999"
+                  style={{ borderRadius: "2px" }}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="empresa" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Empresa</Label>
+                <Input
+                  id="empresa"
+                  value={empresa}
+                  onChange={(e) => setEmpresa(e.target.value)}
+                  placeholder="Opcional"
+                  style={{ borderRadius: "2px" }}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="mensagem" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem Personalizada</Label>
+                <Textarea
+                  id="mensagem"
+                  value={mensagemTexto}
+                  onChange={(e) => setMensagemTexto(e.target.value)}
+                  placeholder="Opcional"
+                  className="resize-none"
+                  style={{ borderRadius: "2px" }}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="data" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Data de Agendamento *</Label>
+                <Input
+                  id="data"
+                  type="datetime-local"
+                  value={dataAgendamento}
+                  onChange={(e) => setDataAgendamento(e.target.value)}
+                  style={{ borderRadius: "2px" }}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button disabled={isSubmitting} onClick={handleCriarDisparo} style={{ borderRadius: "2px" }}>
+                {isSubmitting ? "Salvando..." : "Criar Disparo"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        </div>
       </div>
 
       {/* ── Metric cards ───────────────────────────────────────────────────── */}
@@ -239,8 +451,18 @@ export default function CustomerSuccessPage() {
         />
       </div>
 
-      {/* ── Body grid ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-4 items-start">
+      {/* ── Body Tabs ──────────────────────────────────────────────────────── */}
+      <Tabs defaultValue="feedbacks" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="feedbacks" className="text-xs uppercase tracking-widest font-semibold">Feedbacks Recebidos</TabsTrigger>
+          <TabsTrigger value="fila" className="text-xs uppercase tracking-widest font-semibold gap-2">
+            <CalendarClock className="h-3.5 w-3.5" />
+            Fila de Disparos
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="feedbacks" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-4 items-start">
 
         {/* Left — feedback list */}
         <div className="border border-border bg-card" style={{ borderRadius: "2px" }}>
@@ -421,6 +643,95 @@ export default function CustomerSuccessPage() {
           )}
         </div>
       </div>
+      </TabsContent>
+
+      <TabsContent value="fila" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+        <div className="border border-border bg-card" style={{ borderRadius: "2px" }}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-semibold uppercase tracking-widest text-foreground">
+                Disparos Pendentes
+              </span>
+            </div>
+            <span className="text-[10px] text-muted-foreground/40 font-mono">
+              {disparosPendentes.length} registros
+            </span>
+          </div>
+          
+          <div className="divide-y divide-border/60">
+            {disparosPendentes.length === 0 ? (
+              <div className="py-12 flex flex-col items-center gap-2 text-muted-foreground">
+                <CalendarClock className="h-8 w-8 opacity-15" />
+                <p className="text-sm">Nenhum disparo pendente.</p>
+              </div>
+            ) : (
+              disparosPendentes.map((d) => (
+                <div key={d.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-all">
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm font-semibold text-foreground">
+                      {d.cliente_nome}
+                    </p>
+                    <p className="text-xs text-muted-foreground/70">
+                      {d.cliente_whatsapp} {d.empresa ? `• ${d.empresa}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-xs font-mono">
+                        {d.data_agendamento ? format(new Date(d.data_agendamento), "dd/MM/yyyy HH:mm") : "—"}
+                      </p>
+                      <Badge className="text-[10px] px-1.5 py-0 h-4 border bg-yellow-500/15 text-yellow-400 border-yellow-500/30 mt-1 capitalize">
+                        {d.status || "pendente"}
+                      </Badge>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(d)}>
+                      <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </TabsContent>
+    </Tabs>
+
+    {/* Edit Dialog */}
+    <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+      <DialogContent className="sm:max-w-[425px]" style={{ borderRadius: "2px" }}>
+        <DialogHeader>
+          <DialogTitle className="text-foreground">Editar Disparo</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="edit-mensagem" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem Personalizada</Label>
+            <Textarea
+              id="edit-mensagem"
+              value={editMensagem}
+              onChange={(e) => setEditMensagem(e.target.value)}
+              className="resize-none"
+              style={{ borderRadius: "2px" }}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-data" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Data de Agendamento *</Label>
+            <Input
+              id="edit-data"
+              type="datetime-local"
+              value={editData}
+              onChange={(e) => setEditData(e.target.value)}
+              style={{ borderRadius: "2px" }}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button disabled={isSubmitting} onClick={handleUpdateDisparo} style={{ borderRadius: "2px" }}>
+            {isSubmitting ? "Salvando..." : "Salvar Alterações"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </div>
   )
 }
