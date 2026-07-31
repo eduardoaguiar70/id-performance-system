@@ -318,23 +318,6 @@ export default function CustomerSuccessPage() {
     fetchChat()
   }, [selectedId, feedbacks])
 
-  const handleImportarNotion = async () => {
-    const toastId = toast.loading("Iniciando sincronização com o Notion...")
-    try {
-      const res = await fetch("https://n8n-n8n-start.kfocge.easypanel.host/webhook/importar-notion-nps", {
-        method: "POST"
-      })
-      if (!res.ok) throw new Error("Erro na requisição ao n8n")
-      
-      toast.success("Sincronização do Notion iniciada com sucesso!", { id: toastId })
-      
-      await fetchFeedbacks()
-      await fetchDisparosPendentes()
-    } catch (error: any) {
-      console.error(error)
-      toast.error("Erro ao iniciar sincronização.", { id: toastId })
-    }
-  }
 
   // ── Metrics ─────────────────────────────────────────────────────────────────
 
@@ -382,10 +365,6 @@ export default function CustomerSuccessPage() {
         </div>
         
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-2" onClick={handleImportarNotion} style={{ borderRadius: "2px" }}>
-            <RefreshCw className="h-4 w-4" />
-            Importar do Notion
-          </Button>
 
           <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
             <DialogTrigger asChild>
