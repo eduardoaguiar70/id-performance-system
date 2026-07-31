@@ -148,6 +148,7 @@ export default function CustomerSuccessPage() {
   const [feedbacks, setFeedbacks] = useState<FeedbackCS[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedChat, setSelectedChat] = useState<any>(null)
   const [disparosPendentes, setDisparosPendentes] = useState<any[]>([])
 
   // Modal States
@@ -155,21 +156,29 @@ export default function CustomerSuccessPage() {
   const [clienteNome, setClienteNome] = useState("")
   const [clienteWhatsapp, setClienteWhatsapp] = useState("")
   const [empresa, setEmpresa] = useState("")
-  const [mensagemTexto, setMensagemTexto] = useState("")
+  const [mensagem1, setMensagem1] = useState("")
+  const [mensagem2, setMensagem2] = useState("")
+  const [mensagem3, setMensagem3] = useState("")
+  const [mensagem4, setMensagem4] = useState("")
+  const [mensagem5, setMensagem5] = useState("")
   const [dataAgendamento, setDataAgendamento] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Edit Modal States
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
-  const [editMensagem, setEditMensagem] = useState("")
+  const [editMensagem1, setEditMensagem1] = useState("")
+  const [editMensagem2, setEditMensagem2] = useState("")
+  const [editMensagem3, setEditMensagem3] = useState("")
+  const [editMensagem4, setEditMensagem4] = useState("")
+  const [editMensagem5, setEditMensagem5] = useState("")
   const [editData, setEditData] = useState("")
 
   const fetchDisparosPendentes = async () => {
     const { data, error } = await supabase
       .from("nps_disparos")
       .select("*")
-      .eq("status", "pendente")
+      .in("status", ["pendente", "enviado"])
       .order("data_agendamento", { ascending: true })
     if (!error && data) {
       setDisparosPendentes(data)
@@ -177,8 +186,8 @@ export default function CustomerSuccessPage() {
   }
 
   const handleCriarDisparo = async () => {
-    if (!clienteNome || !clienteWhatsapp || !dataAgendamento) {
-      toast.error("Preencha os campos obrigatórios: Nome, WhatsApp e Data de Agendamento.")
+    if (!clienteNome || !clienteWhatsapp || !dataAgendamento || !mensagem1) {
+      toast.error("Preencha os campos obrigatórios: Nome, WhatsApp, Mensagem 1 e Data de Agendamento.")
       return
     }
 
@@ -190,7 +199,11 @@ export default function CustomerSuccessPage() {
           cliente_nome: clienteNome,
           cliente_whatsapp: clienteWhatsapp,
           empresa: empresa,
-          mensagem_texto: mensagemTexto,
+          mensagem_texto: mensagem1,
+          mensagem_2: mensagem2,
+          mensagem_3: mensagem3,
+          mensagem_4: mensagem4,
+          mensagem_5: mensagem5,
           data_agendamento: dataAgendamento
         })
 
@@ -201,7 +214,11 @@ export default function CustomerSuccessPage() {
       setClienteNome("")
       setClienteWhatsapp("")
       setEmpresa("")
-      setMensagemTexto("")
+      setMensagem1("")
+      setMensagem2("")
+      setMensagem3("")
+      setMensagem4("")
+      setMensagem5("")
       setDataAgendamento("")
       fetchDisparosPendentes()
     } catch (error: any) {
@@ -214,14 +231,18 @@ export default function CustomerSuccessPage() {
 
   const handleOpenEdit = (disparo: any) => {
     setEditId(disparo.id)
-    setEditMensagem(disparo.mensagem_texto || "")
+    setEditMensagem1(disparo.mensagem_texto || "")
+    setEditMensagem2(disparo.mensagem_2 || "")
+    setEditMensagem3(disparo.mensagem_3 || "")
+    setEditMensagem4(disparo.mensagem_4 || "")
+    setEditMensagem5(disparo.mensagem_5 || "")
     setEditData(disparo.data_agendamento || "")
     setIsEditModalOpen(true)
   }
 
   const handleUpdateDisparo = async () => {
-    if (!editId || !editData) {
-      toast.error("A data de agendamento é obrigatória.")
+    if (!editId || !editData || !editMensagem1) {
+      toast.error("A Data de Agendamento e a Mensagem 1 são obrigatórias.")
       return
     }
 
@@ -230,7 +251,11 @@ export default function CustomerSuccessPage() {
       const { error } = await supabase
         .from("nps_disparos")
         .update({
-          mensagem_texto: editMensagem,
+          mensagem_texto: editMensagem1,
+          mensagem_2: editMensagem2,
+          mensagem_3: editMensagem3,
+          mensagem_4: editMensagem4,
+          mensagem_5: editMensagem5,
           data_agendamento: editData
         })
         .eq("id", editId)
@@ -266,6 +291,32 @@ export default function CustomerSuccessPage() {
     fetchFeedbacks()
     fetchDisparosPendentes()
   }, [])
+
+  useEffect(() => {
+    if (!selectedId) {
+      setSelectedChat(null)
+      return
+    }
+    const fb = feedbacks.find((f) => f.id === selectedId)
+    if (!fb || !fb.cliente_whatsapp) {
+      setSelectedChat(null)
+      return
+    }
+
+    const fetchChat = async () => {
+      const { data } = await supabase
+        .from("nps_disparos")
+        .select("*")
+        .eq("cliente_whatsapp", fb.cliente_whatsapp)
+        .order("criado_em", { ascending: false })
+        .limit(1)
+        .single()
+      
+      setSelectedChat(data || null)
+    }
+
+    fetchChat()
+  }, [selectedId, feedbacks])
 
   const handleImportarNotion = async () => {
     const toastId = toast.loading("Iniciando sincronização com o Notion...")
@@ -343,11 +394,11 @@ export default function CustomerSuccessPage() {
                 Novo Disparo Manual
               </Button>
             </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]" style={{ borderRadius: "2px" }}>
+          <DialogContent className="sm:max-w-[600px]" style={{ borderRadius: "2px" }}>
             <DialogHeader>
               <DialogTitle className="text-foreground">Novo Disparo Manual</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="grid gap-2">
                 <Label htmlFor="nome" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Nome do Cliente *</Label>
                 <Input
@@ -379,11 +430,55 @@ export default function CustomerSuccessPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="mensagem" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem Personalizada</Label>
+                <Label htmlFor="mensagem1" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 1 (Apresentação / Saudação) *</Label>
                 <Textarea
-                  id="mensagem"
-                  value={mensagemTexto}
-                  onChange={(e) => setMensagemTexto(e.target.value)}
+                  id="mensagem1"
+                  value={mensagem1}
+                  onChange={(e) => setMensagem1(e.target.value)}
+                  placeholder="Obrigatório"
+                  className="resize-none"
+                  style={{ borderRadius: "2px" }}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="mensagem2" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 2 (Pergunta da Nota 0-5)</Label>
+                <Textarea
+                  id="mensagem2"
+                  value={mensagem2}
+                  onChange={(e) => setMensagem2(e.target.value)}
+                  placeholder="Opcional"
+                  className="resize-none"
+                  style={{ borderRadius: "2px" }}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="mensagem3" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 3 (Pergunta do Motivo)</Label>
+                <Textarea
+                  id="mensagem3"
+                  value={mensagem3}
+                  onChange={(e) => setMensagem3(e.target.value)}
+                  placeholder="Opcional"
+                  className="resize-none"
+                  style={{ borderRadius: "2px" }}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="mensagem4" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 4 (Opcional)</Label>
+                <Textarea
+                  id="mensagem4"
+                  value={mensagem4}
+                  onChange={(e) => setMensagem4(e.target.value)}
+                  placeholder="Opcional"
+                  className="resize-none"
+                  style={{ borderRadius: "2px" }}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="mensagem5" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 5 (Opcional)</Label>
+                <Textarea
+                  id="mensagem5"
+                  value={mensagem5}
+                  onChange={(e) => setMensagem5(e.target.value)}
                   placeholder="Opcional"
                   className="resize-none"
                   style={{ borderRadius: "2px" }}
@@ -632,11 +727,59 @@ export default function CustomerSuccessPage() {
                 </div>
               )}
 
-              {/* Empty analysis state */}
-              {!selected.resumo_executivo && atrito.length === 0 && praticas.length === 0 && (
+              {/* Histórico de Chat */}
+              {(() => {
+                if (!selectedChat) return null
+
+                const sysMsgs = [
+                  selectedChat.mensagem_texto,
+                  selectedChat.mensagem_2,
+                  selectedChat.mensagem_3,
+                  selectedChat.mensagem_4,
+                  selectedChat.mensagem_5
+                ].filter(Boolean)
+                
+                const clientMsgs = selectedChat.respostas_cliente 
+                  ? selectedChat.respostas_cliente.split('---').map((s: string) => s.trim()).filter(Boolean)
+                  : []
+                  
+                const maxLen = Math.max(sysMsgs.length, clientMsgs.length)
+                const chatFlow = []
+                for(let i=0; i<maxLen; i++) {
+                  if (sysMsgs[i]) chatFlow.push({ type: 'system', text: sysMsgs[i] })
+                  if (clientMsgs[i]) chatFlow.push({ type: 'client', text: clientMsgs[i] })
+                }
+                
+                if (chatFlow.length === 0) return null
+
+                return (
+                  <div className="mt-8 border-t border-border/50 pt-6">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono mb-4 flex items-center gap-1">
+                      <MessageCircle className="h-2.5 w-2.5" />
+                      Histórico de Interações
+                    </p>
+                    <div className="space-y-4">
+                      {chatFlow.map((msg, idx) => (
+                        <div key={idx} className={`flex w-full ${msg.type === 'system' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[85%] px-3.5 py-2.5 text-xs leading-relaxed ${
+                            msg.type === 'system' 
+                              ? 'bg-green-500/20 border border-green-500/30 text-green-100 rounded-2xl rounded-tr-sm shadow-sm' 
+                              : 'bg-muted/40 border border-border/50 text-foreground/80 rounded-2xl rounded-tl-sm shadow-sm'
+                          }`}>
+                            {msg.text}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Empty analysis & chat state */}
+              {!selected.resumo_executivo && atrito.length === 0 && praticas.length === 0 && !selectedChat?.mensagem_texto && !selectedChat?.respostas_cliente && (
                 <div className="py-6 flex flex-col items-center gap-2 text-muted-foreground">
                   <Bot className="h-6 w-6 opacity-20" />
-                  <p className="text-xs text-center">Análise da IA ainda não disponível para este feedback.</p>
+                  <p className="text-xs text-center">Nenhum detalhe ou histórico disponível para este feedback.</p>
                 </div>
               )}
             </div>
@@ -681,13 +824,19 @@ export default function CustomerSuccessPage() {
                       <p className="text-xs font-mono">
                         {d.data_agendamento ? format(new Date(d.data_agendamento), "dd/MM/yyyy HH:mm") : "—"}
                       </p>
-                      <Badge className="text-[10px] px-1.5 py-0 h-4 border bg-yellow-500/15 text-yellow-400 border-yellow-500/30 mt-1 capitalize">
+                      <Badge className={`text-[10px] px-1.5 py-0 h-4 border mt-1 capitalize font-medium ${
+                        d.status === 'enviado' 
+                          ? 'bg-green-500/15 text-green-400 border-green-500/30'
+                          : 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'
+                      }`}>
                         {d.status || "pendente"}
                       </Badge>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(d)}>
-                      <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
-                    </Button>
+                    {d.status !== 'enviado' && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(d)}>
+                        <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))
@@ -699,17 +848,57 @@ export default function CustomerSuccessPage() {
 
     {/* Edit Dialog */}
     <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-      <DialogContent className="sm:max-w-[425px]" style={{ borderRadius: "2px" }}>
+      <DialogContent className="sm:max-w-[600px]" style={{ borderRadius: "2px" }}>
         <DialogHeader>
           <DialogTitle className="text-foreground">Editar Disparo</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
           <div className="grid gap-2">
-            <Label htmlFor="edit-mensagem" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem Personalizada</Label>
+            <Label htmlFor="edit-mensagem1" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 1 (Apresentação / Saudação) *</Label>
             <Textarea
-              id="edit-mensagem"
-              value={editMensagem}
-              onChange={(e) => setEditMensagem(e.target.value)}
+              id="edit-mensagem1"
+              value={editMensagem1}
+              onChange={(e) => setEditMensagem1(e.target.value)}
+              className="resize-none"
+              style={{ borderRadius: "2px" }}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-mensagem2" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 2 (Pergunta da Nota 0-5)</Label>
+            <Textarea
+              id="edit-mensagem2"
+              value={editMensagem2}
+              onChange={(e) => setEditMensagem2(e.target.value)}
+              className="resize-none"
+              style={{ borderRadius: "2px" }}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-mensagem3" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 3 (Pergunta do Motivo)</Label>
+            <Textarea
+              id="edit-mensagem3"
+              value={editMensagem3}
+              onChange={(e) => setEditMensagem3(e.target.value)}
+              className="resize-none"
+              style={{ borderRadius: "2px" }}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-mensagem4" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 4 (Opcional)</Label>
+            <Textarea
+              id="edit-mensagem4"
+              value={editMensagem4}
+              onChange={(e) => setEditMensagem4(e.target.value)}
+              className="resize-none"
+              style={{ borderRadius: "2px" }}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-mensagem5" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 5 (Opcional)</Label>
+            <Textarea
+              id="edit-mensagem5"
+              value={editMensagem5}
+              onChange={(e) => setEditMensagem5(e.target.value)}
               className="resize-none"
               style={{ borderRadius: "2px" }}
             />
