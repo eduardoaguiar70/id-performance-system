@@ -14,68 +14,84 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import {
   Heart, TrendingUp, Clock, CheckCircle2, Users,
-  AlertTriangle, ChevronRight, XCircle, CheckCircle,
-  Bot, Sparkles, MessageCircle, Plus, CalendarClock, Pencil, RefreshCw
+  ChevronRight, MessageCircle, Plus, CalendarClock,
+  Pencil, MessageSquare,
 } from "lucide-react"
-import { format } from "date-fns"
-import { ptBR } from "date-fns/locale"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-interface FeedbackCS {
+interface NpsDisparo {
   id: string
-  nome_cliente: string | null
   cliente_nome: string | null
   cliente_whatsapp: string | null
-  nps: number | null
-  status_pesquisa: string | null
-  sentimento: string | null
-  resumo_executivo: string | null
-  pontos_atrito: any
-  boas_praticas: any
+  empresa: string | null
+  status: string | null
+  mensagem_texto: string | null
+  mensagem_2: string | null
+  mensagem_3: string | null
+  mensagem_4: string | null
+  mensagem_5: string | null
+  respostas_cliente: string | null
+  nps_score: number | null
+  nps_classificacao: string | null
+  data_agendamento: string | null
   criado_em: string | null
-  data: string | null
-  [key: string]: any
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-function getClienteNome(fb: FeedbackCS): string {
-  return fb.nome_cliente || fb.cliente_nome || fb.cliente_whatsapp || "Cliente"
+function getNome(d: NpsDisparo): string {
+  return d.cliente_nome || d.cliente_whatsapp || "Cliente"
 }
 
-function getFeedbackDate(fb: FeedbackCS): Date | null {
-  const raw = fb.criado_em || fb.data
+function getDate(d: NpsDisparo): Date | null {
+  const raw = d.data_agendamento || d.criado_em
   if (!raw) return null
-  const d = new Date(raw)
-  return isNaN(d.getTime()) ? null : d
+  const dt = new Date(raw)
+  return isNaN(dt.getTime()) ? null : dt
 }
 
-function parseJsonArray(val: any): string[] {
-  if (!val) return []
-  if (Array.isArray(val)) return val.map(String).filter(Boolean)
-  if (typeof val === "string") {
-    try {
-      const parsed = JSON.parse(val)
-      if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean)
-    } catch { /* fall through */ }
-    return val.split(/\n/).map((s) => s.replace(/^[-*•]\s*/, "").trim()).filter(Boolean)
-  }
-  return []
+function parseChatMessages(raw: string | null): string[] {
+  if (!raw) return []
+  return raw
+    .split(/\n?---\n?/)
+    .map((s) => s.trim())
+    .filter(Boolean)
 }
+
+function buildChatFlow(disparo: NpsDisparo) {
+  const sysMsgs = [
+    disparo.mensagem_texto,
+    disparo.mensagem_2,
+    disparo.mensagem_3,
+    disparo.mensagem_4,
+    disparo.mensagem_5,
+  ].filter(Boolean) as string[]
+
+  const clientMsgs = parseChatMessages(disparo.respostas_cliente)
+
+  const flow: Array<{ type: "system" | "client"; text: string }> = []
+  
+  sysMsgs.forEach((msg) => flow.push({ type: "system", text: msg }))
+  clientMsgs.forEach((msg) => flow.push({ type: "client", text: msg }))
+
+  return flow
+}
+
+// ─── Timezone helpers (America/Sao_Paulo) ──────────────────────────────────────
 
 function getBRTStringForInput(dateStr: string) {
   if (!dateStr) return ""
   const d = new Date(dateStr)
   if (isNaN(d.getTime())) return ""
   try {
-    const formatted = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'America/Sao_Paulo',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: false
+    const formatted = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false,
     }).format(d)
-    return formatted.replace(' ', 'T')
-  } catch (e) {
+    return formatted.replace(" ", "T")
+  } catch {
     return ""
   }
 }
@@ -85,51 +101,38 @@ function formatBRTDisplay(dateStr: string) {
   const d = new Date(dateStr)
   if (isNaN(d.getTime())) return "—"
   try {
-    return new Intl.DateTimeFormat('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    }).format(d).replace(',', '')
-  } catch (e) {
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    }).format(d).replace(",", "")
+  } catch {
     return "—"
   }
 }
 
-function toBRTISO(dateStr: string) {
+function toBRTISO(dateStr: string): string | null {
   if (!dateStr) return null
-  const hasSeconds = dateStr.split(':').length === 3
-  return `${dateStr}${hasSeconds ? '' : ':00'}-03:00`
+  const hasSeconds = dateStr.split(":").length === 3
+  return `${dateStr}${hasSeconds ? "" : ":00"}-03:00`
 }
 
 function formatBRTDateShort(date: Date) {
   try {
-    return new Intl.DateTimeFormat('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      day: '2-digit', month: '2-digit', year: '2-digit'
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit", month: "2-digit", year: "2-digit",
     }).format(date)
-  } catch (e) {
+  } catch {
     return "—"
   }
 }
 
-function formatBRTDateLong(date: Date) {
-  try {
-    const formatted = new Intl.DateTimeFormat('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    }).format(date)
-    return formatted.replace(',', ' às')
-  } catch (e) {
-    return "—"
-  }
-}
-
-// ─── Badge configs ─────────────────────────────────────────────────────────────
+// ─── Badge components ──────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string | null }) {
   const v = (status ?? "").toLowerCase().replace(/[\s-]/g, "_")
-  if (v === "em_andamento" || v === "em andamento")
+  if (v === "em_andamento")
     return (
       <Badge className="text-[10px] px-1.5 py-0 h-4 border bg-yellow-500/15 text-yellow-400 border-yellow-500/30 font-medium">
         Em andamento
@@ -141,6 +144,18 @@ function StatusBadge({ status }: { status: string | null }) {
         Concluído
       </Badge>
     )
+  if (v === "pendente")
+    return (
+      <Badge className="text-[10px] px-1.5 py-0 h-4 border bg-muted/40 text-muted-foreground border-border font-medium">
+        Pendente
+      </Badge>
+    )
+  if (v === "enviado")
+    return (
+      <Badge className="text-[10px] px-1.5 py-0 h-4 border bg-blue-500/15 text-blue-400 border-blue-500/30 font-medium">
+        Enviado
+      </Badge>
+    )
   return (
     <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 capitalize">
       {status ?? "—"}
@@ -148,28 +163,27 @@ function StatusBadge({ status }: { status: string | null }) {
   )
 }
 
-const SENTIMENTO_STYLES: Record<string, { bg: string; text: string }> = {
-  positivo:       { bg: "bg-green-500/15 border-green-500/30",   text: "text-green-400" },
-  neutro:         { bg: "bg-yellow-500/15 border-yellow-500/30", text: "text-yellow-400" },
-  negativo:       { bg: "bg-orange-500/15 border-orange-500/30", text: "text-orange-400" },
-  "risco de churn": { bg: "bg-red-500/15 border-red-500/30",    text: "text-red-400" },
-  risco_churn:    { bg: "bg-red-500/15 border-red-500/30",      text: "text-red-400" },
+const CLASSIFICACAO_STYLES: Record<string, { bg: string; text: string }> = {
+  positivo: { bg: "bg-green-500/15 border-green-500/30", text: "text-green-400" },
+  neutro:   { bg: "bg-yellow-500/15 border-yellow-500/30", text: "text-yellow-400" },
+  detrator: { bg: "bg-red-500/15 border-red-500/30", text: "text-red-400" },
+  negativo: { bg: "bg-orange-500/15 border-orange-500/30", text: "text-orange-400" },
 }
 
-function SentimentoBadge({ sentimento }: { sentimento: string | null }) {
-  if (!sentimento) return <span className="text-xs text-muted-foreground/40">—</span>
-  const key = sentimento.toLowerCase().trim()
-  const style = SENTIMENTO_STYLES[key] ?? { bg: "bg-muted/30 border-border", text: "text-muted-foreground" }
+function ClassificacaoBadge({ classificacao }: { classificacao: string | null }) {
+  if (!classificacao) return null
+  const key = classificacao.toLowerCase().trim()
+  const style = CLASSIFICACAO_STYLES[key] ?? { bg: "bg-muted/30 border-border", text: "text-muted-foreground" }
   return (
-    <Badge className={`text-[10px] px-1.5 py-0 h-4 border ${style.bg} ${style.text} font-medium`}>
-      {sentimento}
+    <Badge className={`text-[10px] px-1.5 py-0 h-4 border ${style.bg} ${style.text} font-medium capitalize`}>
+      {classificacao}
     </Badge>
   )
 }
 
-function NpsBadge({ nps }: { nps: number | null }) {
-  if (nps == null) return <span className="text-xs text-muted-foreground/40">—</span>
-  const n = Number(nps)
+function NpsScoreBadge({ score }: { score: number | null }) {
+  if (score == null) return <span className="text-xs text-muted-foreground/40 font-mono">—</span>
+  const n = Number(score)
   const color = n >= 9 ? "text-green-400" : n >= 7 ? "text-yellow-400" : "text-red-400"
   const label = n >= 9 ? "Promotor" : n >= 7 ? "Passivo" : "Detrator"
   return (
@@ -203,16 +217,82 @@ function MetricCard({
   )
 }
 
+// ─── Chat bubble panel ─────────────────────────────────────────────────────────
+
+function ChatPanel({ disparo }: { disparo: NpsDisparo | null }) {
+  if (!disparo) {
+    return (
+      <div className="py-16 flex flex-col items-center gap-3 text-muted-foreground px-6">
+        <MessageSquare className="h-8 w-8 opacity-15" />
+        <p className="text-xs text-center leading-relaxed">
+          Selecione um feedback ao lado para visualizar a conversa.
+        </p>
+      </div>
+    )
+  }
+
+  const flow = buildChatFlow(disparo)
+
+  if (flow.length === 0) {
+    return (
+      <div className="py-16 flex flex-col items-center gap-3 text-muted-foreground px-6">
+        <MessageSquare className="h-8 w-8 opacity-15" />
+        <p className="text-xs text-center leading-relaxed">
+          Nenhuma mensagem ou resposta registrada neste disparo.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
+      {/* Header info */}
+      <div className="flex items-center gap-2 flex-wrap pb-3 border-b border-border/60">
+        <StatusBadge status={disparo.status} />
+        <ClassificacaoBadge classificacao={disparo.nps_classificacao} />
+        {disparo.nps_score != null && (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            NPS: <NpsScoreBadge score={disparo.nps_score} />
+          </span>
+        )}
+        {getDate(disparo) && (
+          <span className="text-[10px] text-muted-foreground/40 font-mono ml-auto">
+            {formatBRTDisplay(disparo.data_agendamento || disparo.criado_em || "")}
+          </span>
+        )}
+      </div>
+
+      {/* Chat bubbles */}
+      <div className="space-y-2 pt-1">
+        {flow.map((msg, idx) => (
+          <div key={idx} className={`flex w-full ${msg.type === "system" ? "justify-end" : "justify-start"}`}>
+            <div
+              className={`max-w-[85%] px-3.5 py-2.5 text-xs leading-relaxed ${
+                msg.type === "system"
+                  ? "bg-green-500/20 border border-green-500/30 text-green-100 rounded-2xl rounded-tr-sm shadow-sm"
+                  : "bg-muted/40 border border-border/50 text-foreground/80 rounded-2xl rounded-tl-sm shadow-sm"
+              }`}
+            >
+              {msg.text}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function CustomerSuccessPage() {
-  const [feedbacks, setFeedbacks] = useState<FeedbackCS[]>([])
+  const [disparos, setDisparos] = useState<NpsDisparo[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [selectedChat, setSelectedChat] = useState<any>(null)
-  const [disparosPendentes, setDisparosPendentes] = useState<any[]>([])
 
-  // Modal States
+  // Fila de disparos (pendente / enviado)
+  const [disparosPendentes, setDisparosPendentes] = useState<NpsDisparo[]>([])
+
+  // Modal — novo disparo
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [clienteNome, setClienteNome] = useState("")
   const [clienteWhatsapp, setClienteWhatsapp] = useState("")
@@ -225,7 +305,7 @@ export default function CustomerSuccessPage() {
   const [dataAgendamento, setDataAgendamento] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Edit Modal States
+  // Modal — editar disparo
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [editMensagem1, setEditMensagem1] = useState("")
@@ -235,69 +315,96 @@ export default function CustomerSuccessPage() {
   const [editMensagem5, setEditMensagem5] = useState("")
   const [editData, setEditData] = useState("")
 
-  const fetchDisparosPendentes = async () => {
+  // ── Data fetching ─────────────────────────────────────────────────────────
+
+  const fetchDisparos = async () => {
+    setLoading(true)
     const { data, error } = await supabase
       .from("nps_disparos")
       .select("*")
-      .in("status", ["pendente", "enviado"])
-      .order("data_agendamento", { ascending: true })
+      .order("data_agendamento", { ascending: false })
+
     if (!error && data) {
-      setDisparosPendentes(data)
+      const all = data as NpsDisparo[]
+      // Feedbacks recebidos = registros que já têm respostas do cliente
+      setDisparos(all.filter((d) => d.respostas_cliente && d.respostas_cliente.trim() !== ""))
+      // Fila = pendente ou enviado (aguardando ou recentemente disparado)
+      setDisparosPendentes(all.filter((d) => d.status === "pendente" || d.status === "enviado"))
     }
+    setLoading(false)
   }
+
+  useEffect(() => {
+    fetchDisparos()
+  }, [])
+
+  // ── Metrics (from nps_disparos data) ─────────────────────────────────────
+
+  const metrics = useMemo(() => {
+    const withNps = disparos.filter((d) => d.nps_score != null)
+    const npsMedia = withNps.length
+      ? withNps.reduce((s, d) => s + Number(d.nps_score), 0) / withNps.length
+      : null
+
+    const emAndamento = disparos.filter((d) => d.status?.toLowerCase().replace(/[\s-]/g, "_") === "em_andamento").length
+    const concluido = disparos.filter((d) => {
+      const v = (d.status ?? "").toLowerCase()
+      return v === "concluido" || v === "concluído" || v === "finalizado"
+    }).length
+
+    return { npsMedia, emAndamento, concluido, total: disparos.length }
+  }, [disparos])
+
+  const npsColor =
+    metrics.npsMedia == null ? "text-muted-foreground"
+    : metrics.npsMedia >= 9 ? "text-green-400"
+    : metrics.npsMedia >= 7 ? "text-yellow-400"
+    : "text-red-400"
+
+  const selected = disparos.find((d) => d.id === selectedId) ?? null
+
+  // ── CRUD handlers ─────────────────────────────────────────────────────────
 
   const handleCriarDisparo = async () => {
     if (!clienteNome || !clienteWhatsapp || !dataAgendamento || !mensagem1) {
       toast.error("Preencha os campos obrigatórios: Nome, WhatsApp, Mensagem 1 e Data de Agendamento.")
       return
     }
-
     setIsSubmitting(true)
     try {
-      const { error } = await supabase
-        .from("nps_disparos")
-        .insert({
-          cliente_nome: clienteNome,
-          cliente_whatsapp: clienteWhatsapp,
-          empresa: empresa,
-          mensagem_texto: mensagem1,
-          mensagem_2: mensagem2,
-          mensagem_3: mensagem3,
-          mensagem_4: mensagem4,
-          mensagem_5: mensagem5,
-          data_agendamento: toBRTISO(dataAgendamento)
-        })
-
+      const { error } = await supabase.from("nps_disparos").insert({
+        cliente_nome: clienteNome,
+        cliente_whatsapp: clienteWhatsapp,
+        empresa,
+        mensagem_texto: mensagem1,
+        mensagem_2: mensagem2,
+        mensagem_3: mensagem3,
+        mensagem_4: mensagem4,
+        mensagem_5: mensagem5,
+        data_agendamento: toBRTISO(dataAgendamento),
+      })
       if (error) throw error
-
       toast.success("Disparo manual criado com sucesso!")
       setIsModalOpen(false)
-      setClienteNome("")
-      setClienteWhatsapp("")
-      setEmpresa("")
-      setMensagem1("")
-      setMensagem2("")
-      setMensagem3("")
-      setMensagem4("")
-      setMensagem5("")
+      setClienteNome(""); setClienteWhatsapp(""); setEmpresa("")
+      setMensagem1(""); setMensagem2(""); setMensagem3(""); setMensagem4(""); setMensagem5("")
       setDataAgendamento("")
-      fetchDisparosPendentes()
-    } catch (error: any) {
-      console.error(error)
-      toast.error("Erro ao criar disparo: " + error.message)
+      fetchDisparos()
+    } catch (err: any) {
+      toast.error("Erro ao criar disparo: " + err.message)
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleOpenEdit = (disparo: any) => {
+  const handleOpenEdit = (disparo: NpsDisparo) => {
     setEditId(disparo.id)
     setEditMensagem1(disparo.mensagem_texto || "")
     setEditMensagem2(disparo.mensagem_2 || "")
     setEditMensagem3(disparo.mensagem_3 || "")
     setEditMensagem4(disparo.mensagem_4 || "")
     setEditMensagem5(disparo.mensagem_5 || "")
-    setEditData(getBRTStringForInput(disparo.data_agendamento))
+    setEditData(getBRTStringForInput(disparo.data_agendamento || ""))
     setIsEditModalOpen(true)
   }
 
@@ -306,7 +413,6 @@ export default function CustomerSuccessPage() {
       toast.error("A Data de Agendamento e a Mensagem 1 são obrigatórias.")
       return
     }
-
     setIsSubmitting(true)
     try {
       const { error } = await supabase
@@ -317,99 +423,19 @@ export default function CustomerSuccessPage() {
           mensagem_3: editMensagem3,
           mensagem_4: editMensagem4,
           mensagem_5: editMensagem5,
-          data_agendamento: toBRTISO(editData)
+          data_agendamento: toBRTISO(editData),
         })
         .eq("id", editId)
-
       if (error) throw error
-
       toast.success("Disparo atualizado com sucesso!")
       setIsEditModalOpen(false)
-      fetchDisparosPendentes()
-    } catch (error: any) {
-      console.error(error)
-      toast.error("Erro ao atualizar: " + error.message)
+      fetchDisparos()
+    } catch (err: any) {
+      toast.error("Erro ao atualizar: " + err.message)
     } finally {
       setIsSubmitting(false)
     }
   }
-
-  const fetchFeedbacks = async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from("feedbacks_cs")
-      .select("*")
-      .order("criado_em", { ascending: false })
-      .limit(50)
-    
-    if (!error && data) {
-      setFeedbacks(data as FeedbackCS[])
-    }
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    fetchFeedbacks()
-    fetchDisparosPendentes()
-  }, [])
-
-  useEffect(() => {
-    if (!selectedId) {
-      setSelectedChat(null)
-      return
-    }
-    const fb = feedbacks.find((f) => f.id === selectedId)
-    if (!fb || !fb.cliente_whatsapp) {
-      setSelectedChat(null)
-      return
-    }
-
-    const fetchChat = async () => {
-      const { data } = await supabase
-        .from("nps_disparos")
-        .select("*")
-        .eq("cliente_whatsapp", fb.cliente_whatsapp)
-        .order("criado_em", { ascending: false })
-        .limit(1)
-        .single()
-      
-      setSelectedChat(data || null)
-    }
-
-    fetchChat()
-  }, [selectedId, feedbacks])
-
-
-  // ── Metrics ─────────────────────────────────────────────────────────────────
-
-  const metrics = useMemo(() => {
-    const withNps = feedbacks.filter((f) => f.nps != null)
-    const npsMedia = withNps.length
-      ? withNps.reduce((s, f) => s + Number(f.nps), 0) / withNps.length
-      : null
-
-    const emAndamento = feedbacks.filter((f) => {
-      const v = (f.status_pesquisa ?? "").toLowerCase().replace(/[\s-]/g, "_")
-      return v === "em_andamento" || v === "em andamento"
-    }).length
-
-    const concluido = feedbacks.filter((f) => {
-      const v = (f.status_pesquisa ?? "").toLowerCase()
-      return v === "concluido" || v === "concluído" || v === "finalizado"
-    }).length
-
-    return { npsMedia, emAndamento, concluido, total: feedbacks.length }
-  }, [feedbacks])
-
-  const npsColor =
-    metrics.npsMedia == null ? "text-muted-foreground"
-    : metrics.npsMedia >= 9 ? "text-green-400"
-    : metrics.npsMedia >= 7 ? "text-yellow-400"
-    : "text-red-400"
-
-  const selected = feedbacks.find((f) => f.id === selectedId) ?? null
-  const atrito    = parseJsonArray(selected?.pontos_atrito)
-  const praticas  = parseJsonArray(selected?.boas_praticas)
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -424,115 +450,44 @@ export default function CustomerSuccessPage() {
             Customer Success
           </h2>
         </div>
-        
-        <div className="flex items-center gap-2">
 
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="gap-2" style={{ borderRadius: "2px" }}>
-                <Plus className="h-4 w-4" />
-                Novo Disparo Manual
-              </Button>
-            </DialogTrigger>
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="gap-2" style={{ borderRadius: "2px" }}>
+              <Plus className="h-4 w-4" />
+              Novo Disparo Manual
+            </Button>
+          </DialogTrigger>
           <DialogContent className="sm:max-w-[600px]" style={{ borderRadius: "2px" }}>
             <DialogHeader>
               <DialogTitle className="text-foreground">Novo Disparo Manual</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
-              <div className="grid gap-2">
-                <Label htmlFor="nome" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Nome do Cliente *</Label>
-                <Input
-                  id="nome"
-                  value={clienteNome}
-                  onChange={(e) => setClienteNome(e.target.value)}
-                  placeholder="Ex: João Silva"
-                  style={{ borderRadius: "2px" }}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="whatsapp" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">WhatsApp *</Label>
-                <Input
-                  id="whatsapp"
-                  value={clienteWhatsapp}
-                  onChange={(e) => setClienteWhatsapp(e.target.value)}
-                  placeholder="Ex: 5511999999999"
-                  style={{ borderRadius: "2px" }}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="empresa" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Empresa</Label>
-                <Input
-                  id="empresa"
-                  value={empresa}
-                  onChange={(e) => setEmpresa(e.target.value)}
-                  placeholder="Opcional"
-                  style={{ borderRadius: "2px" }}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="mensagem1" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 1 (Apresentação / Saudação) *</Label>
-                <Textarea
-                  id="mensagem1"
-                  value={mensagem1}
-                  onChange={(e) => setMensagem1(e.target.value)}
-                  placeholder="Obrigatório"
-                  className="resize-none"
-                  style={{ borderRadius: "2px" }}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="mensagem2" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 2 (Pergunta da Nota 0-5)</Label>
-                <Textarea
-                  id="mensagem2"
-                  value={mensagem2}
-                  onChange={(e) => setMensagem2(e.target.value)}
-                  placeholder="Opcional"
-                  className="resize-none"
-                  style={{ borderRadius: "2px" }}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="mensagem3" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 3 (Pergunta do Motivo)</Label>
-                <Textarea
-                  id="mensagem3"
-                  value={mensagem3}
-                  onChange={(e) => setMensagem3(e.target.value)}
-                  placeholder="Opcional"
-                  className="resize-none"
-                  style={{ borderRadius: "2px" }}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="mensagem4" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 4 (Opcional)</Label>
-                <Textarea
-                  id="mensagem4"
-                  value={mensagem4}
-                  onChange={(e) => setMensagem4(e.target.value)}
-                  placeholder="Opcional"
-                  className="resize-none"
-                  style={{ borderRadius: "2px" }}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="mensagem5" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 5 (Opcional)</Label>
-                <Textarea
-                  id="mensagem5"
-                  value={mensagem5}
-                  onChange={(e) => setMensagem5(e.target.value)}
-                  placeholder="Opcional"
-                  className="resize-none"
-                  style={{ borderRadius: "2px" }}
-                />
-              </div>
+              {[
+                { id: "nome", label: "Nome do Cliente *", value: clienteNome, set: setClienteNome, placeholder: "Ex: João Silva" },
+                { id: "whatsapp", label: "WhatsApp *", value: clienteWhatsapp, set: setClienteWhatsapp, placeholder: "Ex: 5511999999999" },
+                { id: "empresa", label: "Empresa", value: empresa, set: setEmpresa, placeholder: "Opcional" },
+              ].map(({ id, label, value, set, placeholder }) => (
+                <div key={id} className="grid gap-2">
+                  <Label htmlFor={id} className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</Label>
+                  <Input id={id} value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder} style={{ borderRadius: "2px" }} />
+                </div>
+              ))}
+              {[
+                { id: "msg1", label: "Mensagem 1 (Apresentação / Saudação) *", value: mensagem1, set: setMensagem1, placeholder: "Obrigatório" },
+                { id: "msg2", label: "Mensagem 2 (Pergunta da Nota 0-5)", value: mensagem2, set: setMensagem2 },
+                { id: "msg3", label: "Mensagem 3 (Pergunta do Motivo)", value: mensagem3, set: setMensagem3 },
+                { id: "msg4", label: "Mensagem 4 (Opcional)", value: mensagem4, set: setMensagem4 },
+                { id: "msg5", label: "Mensagem 5 (Opcional)", value: mensagem5, set: setMensagem5 },
+              ].map(({ id, label, value, set, placeholder }) => (
+                <div key={id} className="grid gap-2">
+                  <Label htmlFor={id} className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</Label>
+                  <Textarea id={id} value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder || "Opcional"} className="resize-none" style={{ borderRadius: "2px" }} />
+                </div>
+              ))}
               <div className="grid gap-2">
                 <Label htmlFor="data" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Data de Agendamento *</Label>
-                <Input
-                  id="data"
-                  type="datetime-local"
-                  value={dataAgendamento}
-                  onChange={(e) => setDataAgendamento(e.target.value)}
-                  style={{ borderRadius: "2px" }}
-                />
+                <Input id="data" type="datetime-local" value={dataAgendamento} onChange={(e) => setDataAgendamento(e.target.value)} style={{ borderRadius: "2px" }} />
               </div>
             </div>
             <DialogFooter>
@@ -542,7 +497,6 @@ export default function CustomerSuccessPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        </div>
       </div>
 
       {/* ── Metric cards ───────────────────────────────────────────────────── */}
@@ -582,7 +536,7 @@ export default function CustomerSuccessPage() {
           label="Total de Feedbacks"
           loading={loading}
           value={metrics.total}
-          sub="registros na base"
+          sub="clientes que responderam"
         />
       </div>
 
@@ -596,371 +550,203 @@ export default function CustomerSuccessPage() {
           </TabsTrigger>
         </TabsList>
 
+        {/* ── TAB: Feedbacks Recebidos ──────────────────────────────────────── */}
         <TabsContent value="feedbacks" className="m-0 focus-visible:outline-none focus-visible:ring-0">
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-4 items-start">
 
-        {/* Left — feedback list */}
-        <div className="border border-border bg-card" style={{ borderRadius: "2px" }}>
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="h-3.5 w-3.5 text-primary" />
-              <span className="text-xs font-semibold uppercase tracking-widest text-foreground">
-                Feedbacks Recentes
-              </span>
-            </div>
-            {!loading && (
-              <span className="text-[10px] text-muted-foreground/40 font-mono">
-                {feedbacks.length} registros
-              </span>
-            )}
-          </div>
-
-          {loading ? (
-            <div className="p-3 space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-14 w-full" style={{ borderRadius: "2px" }} />
-              ))}
-            </div>
-          ) : feedbacks.length === 0 ? (
-            <div className="py-12 flex flex-col items-center gap-2 text-muted-foreground">
-              <Heart className="h-8 w-8 opacity-15" />
-              <p className="text-sm">Nenhum feedback registrado ainda.</p>
-              <p className="text-xs text-muted-foreground/50 text-center max-w-xs">
-                Os feedbacks aparecerão aqui conforme o n8n for populando a tabela <code className="font-mono">feedbacks_cs</code>.
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-border/60">
-              {feedbacks.map((fb) => {
-                const nome = getClienteNome(fb)
-                const date = getFeedbackDate(fb)
-                const isSelected = fb.id === selectedId
-                return (
-                  <button
-                    key={fb.id}
-                    onClick={() => setSelectedId(isSelected ? null : fb.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all hover:bg-muted/20 ${
-                      isSelected ? "bg-primary/5 border-l-2 border-l-primary" : "border-l-2 border-l-transparent"
-                    }`}
-                  >
-                    {/* Avatar */}
-                    <div className="h-8 w-8 rounded-sm bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <span className="text-primary text-[10px] font-black leading-none">
-                        {nome.slice(0, 2).toUpperCase()}
-                      </span>
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <p className="text-xs font-semibold text-foreground truncate">{nome}</p>
-                        {date && (
-                          <span className="text-[9px] text-muted-foreground/40 font-mono flex-shrink-0">
-                            {formatBRTDateShort(date)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <StatusBadge status={fb.status_pesquisa} />
-                        <SentimentoBadge sentimento={fb.sentimento} />
-                      </div>
-                    </div>
-
-                    {/* NPS */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <NpsBadge nps={fb.nps} />
-                      <ChevronRight className={`h-3.5 w-3.5 transition-colors ${isSelected ? "text-primary" : "text-muted-foreground/30"}`} />
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Right — AI detail panel */}
-        <div className="border border-border bg-card sticky top-6" style={{ borderRadius: "2px" }}>
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-            <Bot className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-semibold uppercase tracking-widest text-foreground">
-              Raio-X da IA
-            </span>
-            {selected && (
-              <span className="ml-auto text-[10px] text-muted-foreground/50 truncate max-w-[120px]">
-                {getClienteNome(selected)}
-              </span>
-            )}
-          </div>
-
-          {!selected ? (
-            <div className="py-16 flex flex-col items-center gap-3 text-muted-foreground px-6">
-              <Sparkles className="h-8 w-8 opacity-15" />
-              <p className="text-xs text-center leading-relaxed">
-                Selecione um feedback ao lado para ver a análise detalhada gerada pela IA.
-              </p>
-            </div>
-          ) : (
-            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
-
-              {/* Header info */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <StatusBadge status={selected.status_pesquisa} />
-                <SentimentoBadge sentimento={selected.sentimento} />
-                {selected.nps != null && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    NPS: <NpsBadge nps={selected.nps} />
+            {/* Left — feedback list */}
+            <div className="border border-border bg-card" style={{ borderRadius: "2px" }}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-xs font-semibold uppercase tracking-widest text-foreground">
+                    Feedbacks Recentes
                   </span>
-                )}
-                {getFeedbackDate(selected) && (
-                  <span className="text-[10px] text-muted-foreground/40 font-mono ml-auto">
-                    {formatBRTDateLong(getFeedbackDate(selected)!)}
+                </div>
+                {!loading && (
+                  <span className="text-[10px] text-muted-foreground/40 font-mono">
+                    {disparos.length} registros
                   </span>
                 )}
               </div>
 
-              {/* Resumo Executivo */}
-              {selected.resumo_executivo && (
-                <div>
-                  <p className="text-[10px] text-primary/60 uppercase tracking-widest font-mono mb-1.5 flex items-center gap-1">
-                    <Bot className="h-2.5 w-2.5" />
-                    Resumo Executivo
-                  </p>
-                  <p className="text-xs text-foreground/85 leading-relaxed whitespace-pre-wrap bg-muted/20 px-3 py-2.5 border border-border/60" style={{ borderRadius: "2px" }}>
-                    {selected.resumo_executivo}
+              {loading ? (
+                <div className="p-3 space-y-2">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-14 w-full" style={{ borderRadius: "2px" }} />
+                  ))}
+                </div>
+              ) : disparos.length === 0 ? (
+                <div className="py-12 flex flex-col items-center gap-2 text-muted-foreground">
+                  <Heart className="h-8 w-8 opacity-15" />
+                  <p className="text-sm">Nenhum feedback registrado ainda.</p>
+                  <p className="text-xs text-muted-foreground/50 text-center max-w-xs">
+                    Os feedbacks aparecerão aqui quando clientes responderem via WhatsApp.
                   </p>
                 </div>
-              )}
+              ) : (
+                <div className="divide-y divide-border/60">
+                  {disparos.map((d) => {
+                    const nome = getNome(d)
+                    const date = getDate(d)
+                    const isSelected = d.id === selectedId
+                    return (
+                      <button
+                        key={d.id}
+                        onClick={() => setSelectedId(isSelected ? null : d.id)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all hover:bg-muted/20 ${
+                          isSelected ? "bg-primary/5 border-l-2 border-l-primary" : "border-l-2 border-l-transparent"
+                        }`}
+                      >
+                        {/* Avatar */}
+                        <div className="h-8 w-8 rounded-sm bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <span className="text-primary text-[10px] font-black leading-none">
+                            {nome.slice(0, 2).toUpperCase()}
+                          </span>
+                        </div>
 
-              {/* Pontos de Atrito */}
-              {atrito.length > 0 && (
-                <div>
-                  <p className="text-[10px] text-red-400/80 uppercase tracking-widest font-mono mb-1.5 flex items-center gap-1">
-                    <AlertTriangle className="h-2.5 w-2.5" />
-                    Pontos de Atrito
-                  </p>
-                  <ul className="space-y-1.5">
-                    {atrito.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-foreground/80 leading-relaxed">
-                        <XCircle className="h-3.5 w-3.5 text-red-400 flex-shrink-0 mt-0.5" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Boas Práticas */}
-              {praticas.length > 0 && (
-                <div>
-                  <p className="text-[10px] text-green-400/80 uppercase tracking-widest font-mono mb-1.5 flex items-center gap-1">
-                    <CheckCircle2 className="h-2.5 w-2.5" />
-                    Boas Práticas
-                  </p>
-                  <ul className="space-y-1.5">
-                    {praticas.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-foreground/80 leading-relaxed">
-                        <CheckCircle className="h-3.5 w-3.5 text-green-400 flex-shrink-0 mt-0.5" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Histórico de Chat */}
-              {(() => {
-                if (!selectedChat) return null
-
-                const sysMsgs = [
-                  selectedChat.mensagem_texto,
-                  selectedChat.mensagem_2,
-                  selectedChat.mensagem_3,
-                  selectedChat.mensagem_4,
-                  selectedChat.mensagem_5
-                ].filter(Boolean)
-                
-                const clientMsgs = selectedChat.respostas_cliente 
-                  ? selectedChat.respostas_cliente.split('---').map((s: string) => s.trim()).filter(Boolean)
-                  : []
-                  
-                const maxLen = Math.max(sysMsgs.length, clientMsgs.length)
-                const chatFlow = []
-                for(let i=0; i<maxLen; i++) {
-                  if (sysMsgs[i]) chatFlow.push({ type: 'system', text: sysMsgs[i] })
-                  if (clientMsgs[i]) chatFlow.push({ type: 'client', text: clientMsgs[i] })
-                }
-                
-                if (chatFlow.length === 0) return null
-
-                return (
-                  <div className="mt-8 border-t border-border/50 pt-6">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono mb-4 flex items-center gap-1">
-                      <MessageCircle className="h-2.5 w-2.5" />
-                      Histórico de Interações
-                    </p>
-                    <div className="space-y-4">
-                      {chatFlow.map((msg, idx) => (
-                        <div key={idx} className={`flex w-full ${msg.type === 'system' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[85%] px-3.5 py-2.5 text-xs leading-relaxed ${
-                            msg.type === 'system' 
-                              ? 'bg-green-500/20 border border-green-500/30 text-green-100 rounded-2xl rounded-tr-sm shadow-sm' 
-                              : 'bg-muted/40 border border-border/50 text-foreground/80 rounded-2xl rounded-tl-sm shadow-sm'
-                          }`}>
-                            {msg.text}
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <p className="text-xs font-semibold text-foreground truncate">{nome}</p>
+                            {date && (
+                              <span className="text-[9px] text-muted-foreground/40 font-mono flex-shrink-0">
+                                {formatBRTDateShort(date)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <StatusBadge status={d.status} />
+                            <ClassificacaoBadge classificacao={d.nps_classificacao} />
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })()}
 
-              {/* Empty analysis & chat state */}
-              {!selected.resumo_executivo && atrito.length === 0 && praticas.length === 0 && !selectedChat?.mensagem_texto && !selectedChat?.respostas_cliente && (
-                <div className="py-6 flex flex-col items-center gap-2 text-muted-foreground">
-                  <Bot className="h-6 w-6 opacity-20" />
-                  <p className="text-xs text-center">Nenhum detalhe ou histórico disponível para este feedback.</p>
+                        {/* NPS score */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <NpsScoreBadge score={d.nps_score} />
+                          <ChevronRight className={`h-3.5 w-3.5 transition-colors ${isSelected ? "text-primary" : "text-muted-foreground/30"}`} />
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
-          )}
-        </div>
-      </div>
-      </TabsContent>
 
-      <TabsContent value="fila" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-        <div className="border border-border bg-card" style={{ borderRadius: "2px" }}>
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <div className="flex items-center gap-2">
-              <CalendarClock className="h-3.5 w-3.5 text-primary" />
-              <span className="text-xs font-semibold uppercase tracking-widest text-foreground">
-                Disparos Pendentes
+            {/* Right — Chat panel */}
+            <div className="border border-border bg-card sticky top-6" style={{ borderRadius: "2px" }}>
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+                <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-semibold uppercase tracking-widest text-foreground">
+                  Chat do Feedback
+                </span>
+                {selected && (
+                  <span className="ml-auto text-[10px] text-muted-foreground/50 truncate max-w-[130px]">
+                    {getNome(selected)}
+                  </span>
+                )}
+              </div>
+              <ChatPanel disparo={selected} />
+            </div>
+
+          </div>
+        </TabsContent>
+
+        {/* ── TAB: Fila de Disparos ────────────────────────────────────────── */}
+        <TabsContent value="fila" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+          <div className="border border-border bg-card" style={{ borderRadius: "2px" }}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <CalendarClock className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-semibold uppercase tracking-widest text-foreground">
+                  Disparos Pendentes
+                </span>
+              </div>
+              <span className="text-[10px] text-muted-foreground/40 font-mono">
+                {disparosPendentes.length} registros
               </span>
             </div>
-            <span className="text-[10px] text-muted-foreground/40 font-mono">
-              {disparosPendentes.length} registros
-            </span>
-          </div>
-          
-          <div className="divide-y divide-border/60">
-            {disparosPendentes.length === 0 ? (
-              <div className="py-12 flex flex-col items-center gap-2 text-muted-foreground">
-                <CalendarClock className="h-8 w-8 opacity-15" />
-                <p className="text-sm">Nenhum disparo pendente.</p>
-              </div>
-            ) : (
-              disparosPendentes.map((d) => (
-                <div key={d.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-all">
-                  <div className="flex flex-col gap-1">
-                    <p className="text-sm font-semibold text-foreground">
-                      {d.cliente_nome}
-                    </p>
-                    <p className="text-xs text-muted-foreground/70">
-                      {d.cliente_whatsapp} {d.empresa ? `• ${d.empresa}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-xs font-mono">
-                        {formatBRTDisplay(d.data_agendamento)}
-                      </p>
-                      <Badge className={`text-[10px] px-1.5 py-0 h-4 border mt-1 capitalize font-medium ${
-                        d.status === 'enviado' 
-                          ? 'bg-green-500/15 text-green-400 border-green-500/30'
-                          : 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'
-                      }`}>
-                        {d.status || "pendente"}
-                      </Badge>
-                    </div>
-                    {d.status !== 'enviado' && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(d)}>
-                        <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </TabsContent>
-    </Tabs>
 
-    {/* Edit Dialog */}
-    <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-      <DialogContent className="sm:max-w-[600px]" style={{ borderRadius: "2px" }}>
-        <DialogHeader>
-          <DialogTitle className="text-foreground">Editar Disparo</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
-          <div className="grid gap-2">
-            <Label htmlFor="edit-mensagem1" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 1 (Apresentação / Saudação) *</Label>
-            <Textarea
-              id="edit-mensagem1"
-              value={editMensagem1}
-              onChange={(e) => setEditMensagem1(e.target.value)}
-              className="resize-none"
-              style={{ borderRadius: "2px" }}
-            />
+            <div className="divide-y divide-border/60">
+              {loading ? (
+                <div className="p-3 space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full" style={{ borderRadius: "2px" }} />
+                  ))}
+                </div>
+              ) : disparosPendentes.length === 0 ? (
+                <div className="py-12 flex flex-col items-center gap-2 text-muted-foreground">
+                  <CalendarClock className="h-8 w-8 opacity-15" />
+                  <p className="text-sm">Nenhum disparo pendente.</p>
+                </div>
+              ) : (
+                disparosPendentes.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-all">
+                    <div className="flex flex-col gap-1">
+                      <p className="text-sm font-semibold text-foreground">{d.cliente_nome}</p>
+                      <p className="text-xs text-muted-foreground/70">
+                        {d.cliente_whatsapp} {d.empresa ? `• ${d.empresa}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-xs font-mono">
+                          {formatBRTDisplay(d.data_agendamento || "")}
+                        </p>
+                        <Badge className={`text-[10px] px-1.5 py-0 h-4 border mt-1 capitalize font-medium ${
+                          d.status === "enviado"
+                            ? "bg-green-500/15 text-green-400 border-green-500/30"
+                            : "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
+                        }`}>
+                          {d.status || "pendente"}
+                        </Badge>
+                      </div>
+                      {d.status !== "enviado" && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(d)}>
+                          <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="edit-mensagem2" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 2 (Pergunta da Nota 0-5)</Label>
-            <Textarea
-              id="edit-mensagem2"
-              value={editMensagem2}
-              onChange={(e) => setEditMensagem2(e.target.value)}
-              className="resize-none"
-              style={{ borderRadius: "2px" }}
-            />
+        </TabsContent>
+      </Tabs>
+
+      {/* ── Edit Dialog ──────────────────────────────────────────────────────── */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-[600px]" style={{ borderRadius: "2px" }}>
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Editar Disparo</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
+            {[
+              { id: "edit-msg1", label: "Mensagem 1 (Apresentação / Saudação) *", value: editMensagem1, set: setEditMensagem1 },
+              { id: "edit-msg2", label: "Mensagem 2 (Pergunta da Nota 0-5)", value: editMensagem2, set: setEditMensagem2 },
+              { id: "edit-msg3", label: "Mensagem 3 (Pergunta do Motivo)", value: editMensagem3, set: setEditMensagem3 },
+              { id: "edit-msg4", label: "Mensagem 4 (Opcional)", value: editMensagem4, set: setEditMensagem4 },
+              { id: "edit-msg5", label: "Mensagem 5 (Opcional)", value: editMensagem5, set: setEditMensagem5 },
+            ].map(({ id, label, value, set }) => (
+              <div key={id} className="grid gap-2">
+                <Label htmlFor={id} className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</Label>
+                <Textarea id={id} value={value} onChange={(e) => set(e.target.value)} className="resize-none" style={{ borderRadius: "2px" }} />
+              </div>
+            ))}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-data" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Data de Agendamento *</Label>
+              <Input id="edit-data" type="datetime-local" value={editData} onChange={(e) => setEditData(e.target.value)} style={{ borderRadius: "2px" }} />
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="edit-mensagem3" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 3 (Pergunta do Motivo)</Label>
-            <Textarea
-              id="edit-mensagem3"
-              value={editMensagem3}
-              onChange={(e) => setEditMensagem3(e.target.value)}
-              className="resize-none"
-              style={{ borderRadius: "2px" }}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="edit-mensagem4" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 4 (Opcional)</Label>
-            <Textarea
-              id="edit-mensagem4"
-              value={editMensagem4}
-              onChange={(e) => setEditMensagem4(e.target.value)}
-              className="resize-none"
-              style={{ borderRadius: "2px" }}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="edit-mensagem5" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mensagem 5 (Opcional)</Label>
-            <Textarea
-              id="edit-mensagem5"
-              value={editMensagem5}
-              onChange={(e) => setEditMensagem5(e.target.value)}
-              className="resize-none"
-              style={{ borderRadius: "2px" }}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="edit-data" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Data de Agendamento *</Label>
-            <Input
-              id="edit-data"
-              type="datetime-local"
-              value={editData}
-              onChange={(e) => setEditData(e.target.value)}
-              style={{ borderRadius: "2px" }}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button disabled={isSubmitting} onClick={handleUpdateDisparo} style={{ borderRadius: "2px" }}>
-            {isSubmitting ? "Salvando..." : "Salvar Alterações"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button disabled={isSubmitting} onClick={handleUpdateDisparo} style={{ borderRadius: "2px" }}>
+              {isSubmitting ? "Salvando..." : "Salvar Alterações"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }
