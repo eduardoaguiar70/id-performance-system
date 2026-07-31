@@ -64,6 +64,67 @@ function parseJsonArray(val: any): string[] {
   return []
 }
 
+function getBRTStringForInput(dateStr: string) {
+  if (!dateStr) return ""
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ""
+  try {
+    const formatted = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    }).format(d)
+    return formatted.replace(' ', 'T')
+  } catch (e) {
+    return ""
+  }
+}
+
+function formatBRTDisplay(dateStr: string) {
+  if (!dateStr) return "—"
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return "—"
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    }).format(d).replace(',', '')
+  } catch (e) {
+    return "—"
+  }
+}
+
+function toBRTISO(dateStr: string) {
+  if (!dateStr) return null
+  const hasSeconds = dateStr.split(':').length === 3
+  return `${dateStr}${hasSeconds ? '' : ':00'}-03:00`
+}
+
+function formatBRTDateShort(date: Date) {
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit', month: '2-digit', year: '2-digit'
+    }).format(date)
+  } catch (e) {
+    return "—"
+  }
+}
+
+function formatBRTDateLong(date: Date) {
+  try {
+    const formatted = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    }).format(date)
+    return formatted.replace(',', ' às')
+  } catch (e) {
+    return "—"
+  }
+}
+
 // ─── Badge configs ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string | null }) {
@@ -204,7 +265,7 @@ export default function CustomerSuccessPage() {
           mensagem_3: mensagem3,
           mensagem_4: mensagem4,
           mensagem_5: mensagem5,
-          data_agendamento: dataAgendamento
+          data_agendamento: toBRTISO(dataAgendamento)
         })
 
       if (error) throw error
@@ -236,7 +297,7 @@ export default function CustomerSuccessPage() {
     setEditMensagem3(disparo.mensagem_3 || "")
     setEditMensagem4(disparo.mensagem_4 || "")
     setEditMensagem5(disparo.mensagem_5 || "")
-    setEditData(disparo.data_agendamento || "")
+    setEditData(getBRTStringForInput(disparo.data_agendamento))
     setIsEditModalOpen(true)
   }
 
@@ -256,7 +317,7 @@ export default function CustomerSuccessPage() {
           mensagem_3: editMensagem3,
           mensagem_4: editMensagem4,
           mensagem_5: editMensagem5,
-          data_agendamento: editData
+          data_agendamento: toBRTISO(editData)
         })
         .eq("id", editId)
 
@@ -595,7 +656,7 @@ export default function CustomerSuccessPage() {
                         <p className="text-xs font-semibold text-foreground truncate">{nome}</p>
                         {date && (
                           <span className="text-[9px] text-muted-foreground/40 font-mono flex-shrink-0">
-                            {format(date, "dd/MM/yy", { locale: ptBR })}
+                            {formatBRTDateShort(date)}
                           </span>
                         )}
                       </div>
@@ -652,7 +713,7 @@ export default function CustomerSuccessPage() {
                 )}
                 {getFeedbackDate(selected) && (
                   <span className="text-[10px] text-muted-foreground/40 font-mono ml-auto">
-                    {format(getFeedbackDate(selected)!, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    {formatBRTDateLong(getFeedbackDate(selected)!)}
                   </span>
                 )}
               </div>
@@ -801,7 +862,7 @@ export default function CustomerSuccessPage() {
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <p className="text-xs font-mono">
-                        {d.data_agendamento ? format(new Date(d.data_agendamento), "dd/MM/yyyy HH:mm") : "—"}
+                        {formatBRTDisplay(d.data_agendamento)}
                       </p>
                       <Badge className={`text-[10px] px-1.5 py-0 h-4 border mt-1 capitalize font-medium ${
                         d.status === 'enviado' 
