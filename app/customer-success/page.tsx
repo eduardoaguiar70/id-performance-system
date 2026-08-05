@@ -21,6 +21,7 @@ import {
   ChevronRight, MessageCircle, Plus, CalendarClock,
   Pencil, MessageSquare, FileText, Sparkles, RefreshCw,
   Star, BarChart2, Zap, AlertTriangle, ClipboardList, CircleCheck,
+  Siren
 } from "lucide-react"
 import { useNps, type NpsDisparo, type NpsRelatorio } from "@/hooks/useNps"
 
@@ -326,14 +327,15 @@ function ChatPanel({ disparo }: { disparo: NpsDisparo | null }) {
 interface ReportSection {
   title: string
   content: string
-  type: "resumo" | "fortes" | "gargalos" | "acao" | "other"
+  type: "resumo" | "fortes" | "gargalos" | "acao" | "other" | "risco"
 }
 
 function classifySection(title: string): ReportSection["type"] {
   const t = title.toLowerCase()
   if (t.includes("resumo") || t.includes("satisfa") || t.includes("geral") || t.includes("overview") || t.includes("vis")) return "resumo"
   if (t.includes("forte") || t.includes("manter") || t.includes("positiv") || t.includes("destaqu")) return "fortes"
-  if (t.includes("gargalo") || t.includes("fraqueza") || t.includes("melhorar") || t.includes("risco") || t.includes("aten")) return "gargalos"
+  if (t.includes("risco") || t.includes("aten")) return "risco"
+  if (t.includes("gargalo") || t.includes("fraqueza") || t.includes("melhorar")) return "gargalos"
   if (t.includes("a\u00e7") || t.includes("plano") || t.includes("tático") || t.includes("tatico") || t.includes("recomend") || t.includes("pr")) return "acao"
   return "other"
 }
@@ -408,6 +410,27 @@ const mdComponents = {
   ),
 }
 
+// ─── Relatório IA — Markdown renderers (Risco variant) ──────────────────────
+
+const mdComponentsRisco = {
+  ...mdComponents,
+  // Top-level list: keep a bit of spacing
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="space-y-2 my-2 pl-0">{children}</ul>
+  ),
+  // Nested list: indent subtopics
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className="space-y-1.5 mt-1.5 pl-4 list-none">{children}</ol>
+  ),
+  // All list items: arrow icon in red instead of CircleCheck
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li className="flex items-start gap-2 text-[13px] leading-relaxed text-foreground/80">
+      <ChevronRight className="h-3.5 w-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+      <span>{children}</span>
+    </li>
+  ),
+}
+
 // ─── Relatório IA — Section Card ──────────────────────────────────────────────
 
 const SECTION_CONFIG = {
@@ -437,6 +460,15 @@ const SECTION_CONFIG = {
     headerText: "text-amber-400",
     iconColor: "text-amber-400",
     accentBar: "bg-amber-500",
+  },
+  risco: {
+    icon: Siren,
+    label: "Clientes em Risco (Atenção Urgente)",
+    border: "border-red-500/50",
+    headerBg: "bg-red-500/10",
+    headerText: "text-red-500",
+    iconColor: "text-red-500",
+    accentBar: "bg-red-500",
   },
   acao: {
     icon: ClipboardList,
@@ -483,7 +515,10 @@ function SectionCard({ section }: { section: ReportSection }) {
 
       {/* Card body */}
       <div className="px-5 py-4">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={section.type === "risco" ? mdComponentsRisco : mdComponents}
+        >
           {section.content}
         </ReactMarkdown>
       </div>
@@ -498,6 +533,7 @@ function RelatorioSkeleton() {
     { barColor: "bg-primary/40", w: "w-40" },
     { barColor: "bg-green-500/40", w: "w-48" },
     { barColor: "bg-amber-500/40", w: "w-44" },
+    { barColor: "bg-red-500/40", w: "w-48" },
     { barColor: "bg-blue-500/40", w: "w-52" },
   ]
   return (
@@ -538,7 +574,7 @@ function RelatorioPanel({
   const sections = relatorio ? parseMarkdownSections(relatorio.conteudo_markdown) : []
 
   // Order sections by type priority
-  const typeOrder: ReportSection["type"][] = ["resumo", "fortes", "gargalos", "acao", "other"]
+  const typeOrder: ReportSection["type"][] = ["resumo", "fortes", "gargalos", "risco", "acao", "other"]
   const sorted = [...sections].sort(
     (a, b) => typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type)
   )
