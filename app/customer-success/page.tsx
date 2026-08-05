@@ -21,9 +21,10 @@ import {
   ChevronRight, MessageCircle, Plus, CalendarClock,
   Pencil, MessageSquare, FileText, Sparkles, RefreshCw,
   Star, BarChart2, Zap, AlertTriangle, ClipboardList, CircleCheck,
-  Siren
+  Siren, Settings2, Save, Info, Braces,
+  UserPlus, Trash2, ToggleLeft, ToggleRight, Send, ShieldAlert, Search
 } from "lucide-react"
-import { useNps, type NpsDisparo, type NpsRelatorio } from "@/hooks/useNps"
+import { useNps, type NpsDisparo, type NpsRelatorio, type NpsConfiguracoes, type NpsCliente } from "@/hooks/useNps"
 
 // ─── Timezone helpers (America/Sao_Paulo) ─────────────────────────────────────
 
@@ -654,15 +655,727 @@ function RelatorioPanel({
   )
 }
 
+// ─── Configurações NPS Panel ──────────────────────────────────────────────────
+
+function ConfiguracoesNpsPanel({
+  fetchConfiguracoes,
+  updateConfiguracoes,
+}: {
+  fetchConfiguracoes: () => Promise<NpsConfiguracoes | null>
+  updateConfiguracoes: (payload: {
+    mensagem_texto: string
+    mensagem_2?: string
+    mensagem_3?: string
+    mensagem_4?: string
+    mensagem_5?: string
+    instrucoes_diretoria?: string
+  }) => Promise<void>
+}) {
+  const [loadingCfg, setLoadingCfg] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [msg1, setMsg1] = useState("")
+  const [msg2, setMsg2] = useState("")
+  const [msg3, setMsg3] = useState("")
+  const [msg4, setMsg4] = useState("")
+  const [msg5, setMsg5] = useState("")
+  const [instrucoes, setInstrucoes] = useState("")
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+
+  useEffect(() => {
+    const load = async () => {
+      setLoadingCfg(true)
+      try {
+        const config = await fetchConfiguracoes()
+        if (config) {
+          setMsg1(config.mensagem_texto ?? "")
+          setMsg2(config.mensagem_2 ?? "")
+          setMsg3(config.mensagem_3 ?? "")
+          setMsg4(config.mensagem_4 ?? "")
+          setMsg5(config.mensagem_5 ?? "")
+          setInstrucoes(config.instrucoes_diretoria ?? "")
+          setLastUpdated(config.atualizado_em)
+        }
+      } catch (err: any) {
+        toast.error("Erro ao carregar configurações: " + err.message)
+      } finally {
+        setLoadingCfg(false)
+      }
+    }
+    load()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSave = async () => {
+    if (!msg1.trim()) {
+      toast.error("A Mensagem 1 é obrigatória.")
+      return
+    }
+    setSaving(true)
+    try {
+      await updateConfiguracoes({
+        mensagem_texto: msg1,
+        mensagem_2: msg2 || undefined,
+        mensagem_3: msg3 || undefined,
+        mensagem_4: msg4 || undefined,
+        mensagem_5: msg5 || undefined,
+        instrucoes_diretoria: instrucoes || undefined,
+      })
+      setLastUpdated(new Date().toISOString())
+      toast.success("Configurações salvas com sucesso!")
+    } catch (err: any) {
+      toast.error("Erro ao salvar configurações: " + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const fields = [
+    { id: "cfg-msg1", label: "Mensagem 1 — Abertura / Saudação", required: true,  value: msg1, set: setMsg1, placeholder: "Ex: Olá! Tudo bem? Sou da ID Performance e gostaríamos de saber como foi sua experiência conosco." },
+    { id: "cfg-msg2", label: "Mensagem 2", required: false, value: msg2, set: setMsg2, placeholder: "Opcional" },
+    { id: "cfg-msg3", label: "Mensagem 3", required: false, value: msg3, set: setMsg3, placeholder: "Opcional" },
+    { id: "cfg-msg4", label: "Mensagem 4", required: false, value: msg4, set: setMsg4, placeholder: "Opcional" },
+    { id: "cfg-msg5", label: "Mensagem 5", required: false, value: msg5, set: setMsg5, placeholder: "Opcional" },
+  ]
+
+  return (
+    <div className="space-y-5">
+      {/* Header bar */}
+      <div
+        className="flex items-center justify-between border border-border bg-card px-4 py-3"
+        style={{ borderRadius: "2px" }}
+      >
+        <div className="flex items-center gap-2.5">
+          <Settings2 className="h-3.5 w-3.5 text-primary" />
+          <span className="text-xs font-bold uppercase tracking-widest text-foreground">
+            Configurações do Fluxo de Disparo NPS
+          </span>
+          {lastUpdated && (
+            <span className="text-[10px] text-muted-foreground/40 font-mono">
+              · Salvo em {formatBRTDisplay(lastUpdated)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5 items-start">
+        {/* Form */}
+        <div className="border border-border bg-card" style={{ borderRadius: "2px" }}>
+          <div className="h-0.5 w-full bg-primary opacity-60" />
+          <div className="px-5 py-5 space-y-5">
+            {loadingCfg ? (
+              <div className="space-y-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-3 w-40" style={{ borderRadius: "2px" }} />
+                    <Skeleton className="h-20 w-full" style={{ borderRadius: "2px" }} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                {fields.map(({ id, label, required, value, set, placeholder }) => (
+                  <div key={id} className="grid gap-2">
+                    <Label
+                      htmlFor={id}
+                      className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+                    >
+                      {label}
+                      {required ? (
+                        <span className="text-primary font-bold">*</span>
+                      ) : (
+                        <span className="text-[9px] text-muted-foreground/40 normal-case tracking-normal font-normal">(opcional)</span>
+                      )}
+                    </Label>
+                    <Textarea
+                      id={id}
+                      value={value}
+                      onChange={(e) => set(e.target.value)}
+                      placeholder={placeholder}
+                      rows={3}
+                      className="resize-none text-sm leading-relaxed bg-background/50 border-border/80 focus:border-primary/50 transition-colors"
+                      style={{ borderRadius: "2px" }}
+                    />
+                  </div>
+                ))}
+
+                {/* Instrucoes diretoria */}
+                <div className="grid gap-2 pt-1 border-t border-border/40">
+                  <Label
+                    htmlFor="cfg-instrucoes"
+                    className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+                  >
+                    Instruções para a IA (Relatório Executivo)
+                    <span className="text-[9px] text-muted-foreground/40 normal-case tracking-normal font-normal">(opcional)</span>
+                  </Label>
+                  <Textarea
+                    id="cfg-instrucoes"
+                    value={instrucoes}
+                    onChange={(e) => setInstrucoes(e.target.value)}
+                    placeholder="Ex: Priorize clientes detratores no resumo. Sempre sugira ações de retenção proativa..."
+                    rows={4}
+                    className="resize-none text-sm leading-relaxed bg-background/50 border-border/80 focus:border-primary/50 transition-colors"
+                    style={{ borderRadius: "2px" }}
+                  />
+                </div>
+              </>
+            )}
+            <div className="flex items-center justify-between pt-2 border-t border-border/60">
+              <p className="text-[10px] text-muted-foreground/40">* Campo obrigatório</p>
+              <Button
+                onClick={handleSave}
+                disabled={saving || loadingCfg}
+                className="gap-2 text-xs"
+                style={{ borderRadius: "2px" }}
+              >
+                {saving ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                {saving ? "Salvando..." : "Salvar Configurações"}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Info sidebar */}
+        <div className="space-y-4">
+          {/* Variables block */}
+          <div className="border border-primary/30 bg-primary/5 overflow-hidden" style={{ borderRadius: "2px" }}>
+            <div className="h-0.5 w-full bg-primary opacity-70" />
+            <div className="px-4 py-3.5 border-b border-primary/20 flex items-center gap-2.5">
+              <div
+                className="flex items-center justify-center h-7 w-7 bg-primary/10 border border-primary/30 flex-shrink-0"
+                style={{ borderRadius: "2px" }}
+              >
+                <Braces className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span className="text-xs font-bold uppercase tracking-widest text-primary">
+                Variáveis Dinâmicas
+              </span>
+            </div>
+            <div className="px-4 py-4 space-y-3">
+              <p className="text-[13px] leading-relaxed text-foreground/75">
+                Você <strong className="text-foreground">não precisa</strong> incluir o nome do cliente nas mensagens agora.
+              </p>
+              <p className="text-[13px] leading-relaxed text-foreground/60">
+                O fluxo n8n substitui automaticamente as variáveis antes de enviar cada mensagem via WhatsApp.
+              </p>
+              <div className="space-y-2 pt-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Variáveis disponíveis</p>
+                {[
+                  { v: "{{nome_cliente}}", desc: "Nome completo do cliente" },
+                  { v: "{{empresa}}",      desc: "Nome da empresa" },
+                  { v: "{{whatsapp}}",     desc: "Número do WhatsApp" },
+                ].map(({ v, desc }) => (
+                  <div key={v} className="flex items-start gap-2">
+                    <code
+                      className="text-[11px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 flex-shrink-0"
+                      style={{ borderRadius: "2px" }}
+                    >
+                      {v}
+                    </code>
+                    <span className="text-[12px] text-muted-foreground/70 leading-tight pt-0.5">{desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Tips block */}
+          <div className="border border-border bg-card overflow-hidden" style={{ borderRadius: "2px" }}>
+            <div className="px-4 py-3 border-b border-border/60 flex items-center gap-2">
+              <Info className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Dicas do Fluxo</span>
+            </div>
+            <div className="px-4 py-4 space-y-2.5">
+              {[
+                "A Mensagem 1 é a abertura — seja direto e amigável.",
+                "Mensagens 2 e 3 costumam ser as perguntas principais (nota e motivo).",
+                "Mensagens 4 e 5 são opcionais, use para aprofundar o feedback.",
+                "Mantenha as mensagens curtas para WhatsApp (máx. ~300 caracteres).",
+              ].map((tip, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="text-[10px] font-bold text-primary/70 mt-0.5 flex-shrink-0">{i + 1}.</span>
+                  <p className="text-[12px] leading-relaxed text-muted-foreground/70">{tip}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Clientes NPS Panel ───────────────────────────────────────────────────────
+
+function ClientesNpsPanel({
+  fetchClientes,
+  createCliente,
+  updateClienteStatus,
+  deleteCliente,
+  dispararNpsLote,
+}: {
+  fetchClientes: () => Promise<NpsCliente[]>
+  createCliente: (p: { nome_cliente: string; empresa?: string; whatsapp: string }) => Promise<void>
+  updateClienteStatus: (id: string, status: boolean) => Promise<void>
+  deleteCliente: (id: string) => Promise<void>
+  dispararNpsLote: (ids: string[]) => Promise<number>
+}) {
+  const [clientes, setClientes]       = useState<NpsCliente[]>([])
+  const [loadingList, setLoadingList] = useState(true)
+  const [search, setSearch]           = useState("")
+  const [selected, setSelected]       = useState<Set<string>>(new Set())
+
+  // ── Add modal state ────────────────────────────────────────────────────────
+  const [addOpen, setAddOpen]     = useState(false)
+  const [addNome, setAddNome]     = useState("")
+  const [addEmpresa, setAddEmpresa] = useState("")
+  const [addWhats, setAddWhats]   = useState("")
+  const [addSaving, setAddSaving] = useState(false)
+
+  // ── Dispatch confirmation modal ────────────────────────────────────────────
+  const [dispOpen, setDispOpen]       = useState(false)
+  const [dispatching, setDispatching] = useState(false)
+
+  // ── Inline action loading per row ─────────────────────────────────────────
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [deletingId,  setDeletingId]  = useState<string | null>(null)
+
+  const load = async () => {
+    setLoadingList(true)
+    try {
+      const data = await fetchClientes()
+      setClientes(data)
+    } catch (err: any) {
+      toast.error("Erro ao carregar clientes: " + err.message)
+    } finally {
+      setLoadingList(false)
+    }
+  }
+
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Derived filtered list ─────────────────────────────────────────────────
+  const filtered = clientes.filter((c) => {
+    const q = search.toLowerCase()
+    return (
+      c.nome_cliente.toLowerCase().includes(q) ||
+      (c.empresa ?? "").toLowerCase().includes(q) ||
+      c.whatsapp.includes(q)
+    )
+  })
+
+  const allChecked = filtered.length > 0 && filtered.every((c) => selected.has(c.id))
+  const someChecked = filtered.some((c) => selected.has(c.id))
+
+  const toggleAll = () => {
+    if (allChecked) {
+      setSelected((prev) => {
+        const next = new Set(prev)
+        filtered.forEach((c) => next.delete(c.id))
+        return next
+      })
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev)
+        filtered.forEach((c) => next.add(c.id))
+        return next
+      })
+    }
+  }
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
+
+  const handleAdd = async () => {
+    if (!addNome.trim() || !addWhats.trim()) {
+      toast.error("Nome e WhatsApp são obrigatórios.")
+      return
+    }
+    setAddSaving(true)
+    try {
+      await createCliente({ nome_cliente: addNome.trim(), empresa: addEmpresa.trim() || undefined, whatsapp: addWhats.trim() })
+      toast.success("Cliente adicionado com sucesso!")
+      setAddOpen(false)
+      setAddNome(""); setAddEmpresa(""); setAddWhats("")
+      await load()
+    } catch (err: any) {
+      toast.error("Erro ao adicionar cliente: " + err.message)
+    } finally {
+      setAddSaving(false)
+    }
+  }
+
+  const handleToggleStatus = async (c: NpsCliente) => {
+    setTogglingId(c.id)
+    try {
+      await updateClienteStatus(c.id, !c.status_ativo)
+      setClientes((prev) => prev.map((x) => x.id === c.id ? { ...x, status_ativo: !c.status_ativo } : x))
+    } catch (err: any) {
+      toast.error("Erro ao alterar status: " + err.message)
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id)
+    try {
+      await deleteCliente(id)
+      setClientes((prev) => prev.filter((c) => c.id !== id))
+      setSelected((prev) => { const n = new Set(prev); n.delete(id); return n })
+      toast.success("Cliente removido.")
+    } catch (err: any) {
+      toast.error("Erro ao excluir cliente: " + err.message)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleDisparar = async () => {
+    setDispatching(true)
+    try {
+      const count = await dispararNpsLote(Array.from(selected))
+      toast.success(`${count} disparo(s) NPS criado(s) com sucesso!`)
+      setSelected(new Set())
+      setDispOpen(false)
+      await load()
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setDispatching(false)
+    }
+  }
+
+  const selectedCount = selected.size
+
+  return (
+    <div className="space-y-4">
+
+      {/* ── Toolbar ──────────────────────────────────────────────────────────── */}
+      <div
+        className="flex flex-wrap items-center gap-3 border border-border bg-card px-4 py-3"
+        style={{ borderRadius: "2px" }}
+      >
+        {/* Icon + title */}
+        <div className="flex items-center gap-2 mr-1">
+          <Users className="h-3.5 w-3.5 text-primary" />
+          <span className="text-xs font-bold uppercase tracking-widest text-foreground">
+            Clientes NPS
+          </span>
+        </div>
+
+        {/* Search */}
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50 pointer-events-none" />
+          <Input
+            id="nps-clientes-search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nome, empresa ou WhatsApp…"
+            className="pl-8 h-8 text-xs bg-background/50"
+            style={{ borderRadius: "2px" }}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          {/* Batch dispatch button — only when items selected */}
+          {selectedCount > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2 text-xs border-primary/40 text-primary hover:bg-primary/10 hover:border-primary/60"
+              style={{ borderRadius: "2px" }}
+              onClick={() => setDispOpen(true)}
+            >
+              <Send className="h-3.5 w-3.5" />
+              Disparar NPS para {selectedCount} selecionado{selectedCount !== 1 ? "s" : ""}
+            </Button>
+          )}
+
+          {/* Add client */}
+          <Button
+            size="sm"
+            className="gap-2 text-xs"
+            style={{ borderRadius: "2px" }}
+            onClick={() => setAddOpen(true)}
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Novo Cliente
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Table ────────────────────────────────────────────────────────────── */}
+      <div className="border border-border bg-card overflow-hidden" style={{ borderRadius: "2px" }}>
+        {/* Table header */}
+        <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 px-4 py-2.5 border-b border-border bg-muted/20 items-center">
+          <input
+            type="checkbox"
+            id="nps-check-all"
+            checked={allChecked}
+            ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked }}
+            onChange={toggleAll}
+            className="h-3.5 w-3.5 accent-primary cursor-pointer"
+          />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Cliente</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-center">Status</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-right hidden sm:block">Último NPS</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-right hidden md:block">Próximo NPS</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-right">Ações</span>
+        </div>
+
+        {/* Rows */}
+        {loadingList ? (
+          <div className="p-3 space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" style={{ borderRadius: "2px" }} />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="py-14 flex flex-col items-center gap-2 text-muted-foreground">
+            <Users className="h-8 w-8 opacity-15" />
+            <p className="text-sm">
+              {search ? "Nenhum cliente encontrado para esta busca." : "Nenhum cliente cadastrado ainda."}
+            </p>
+            {!search && (
+              <p className="text-xs text-muted-foreground/50">Clique em &quot;Novo Cliente&quot; para começar.</p>
+            )}
+          </div>
+        ) : (
+          <div className="divide-y divide-border/60">
+            {filtered.map((c) => {
+              const isSelected = selected.has(c.id)
+              return (
+                <div
+                  key={c.id}
+                  className={`grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 px-4 py-3 items-center transition-colors ${
+                    isSelected ? "bg-primary/5" : "hover:bg-muted/10"
+                  }`}
+                >
+                  {/* Checkbox */}
+                  <input
+                    type="checkbox"
+                    id={`nps-check-${c.id}`}
+                    checked={isSelected}
+                    onChange={() => toggleOne(c.id)}
+                    className="h-3.5 w-3.5 accent-primary cursor-pointer"
+                  />
+
+                  {/* Name + empresa + whatsapp */}
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{c.nome_cliente}</p>
+                    <p className="text-[11px] text-muted-foreground/60 truncate">
+                      {[c.empresa, c.whatsapp].filter(Boolean).join(" · ")}
+                    </p>
+                  </div>
+
+                  {/* Status badge */}
+                  <div className="flex justify-center">
+                    {c.status_ativo ? (
+                      <Badge className="text-[10px] px-1.5 py-0 h-4 border bg-green-500/15 text-green-400 border-green-500/30 font-medium">
+                        Ativo
+                      </Badge>
+                    ) : (
+                      <Badge className="text-[10px] px-1.5 py-0 h-4 border bg-muted/40 text-muted-foreground border-border font-medium">
+                        Inativo
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Último NPS */}
+                  <span className="text-[10px] font-mono text-muted-foreground/50 text-right hidden sm:block">
+                    {c.ultimo_nps_em ? formatBRTDisplay(c.ultimo_nps_em) : "—"}
+                  </span>
+
+                  {/* Próximo NPS */}
+                  <span className="text-[10px] font-mono text-muted-foreground/50 text-right hidden md:block">
+                    {c.proximo_nps_em ? formatBRTDisplay(c.proximo_nps_em) : "—"}
+                  </span>
+
+                  {/* Actions */}
+                  <div className="flex items-center justify-end gap-1">
+                    {/* Toggle status */}
+                    <button
+                      title={c.status_ativo ? "Desativar cliente" : "Ativar cliente"}
+                      disabled={togglingId === c.id}
+                      onClick={() => handleToggleStatus(c)}
+                      className="h-7 w-7 flex items-center justify-center rounded-sm hover:bg-muted/30 transition-colors disabled:opacity-40"
+                    >
+                      {togglingId === c.id ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                      ) : c.status_ativo ? (
+                        <ToggleRight className="h-4 w-4 text-green-400" />
+                      ) : (
+                        <ToggleLeft className="h-4 w-4 text-muted-foreground/50" />
+                      )}
+                    </button>
+
+                    {/* Delete */}
+                    <button
+                      title="Excluir cliente"
+                      disabled={deletingId === c.id}
+                      onClick={() => handleDelete(c.id)}
+                      className="h-7 w-7 flex items-center justify-center rounded-sm hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                    >
+                      {deletingId === c.id ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin text-red-400" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-red-400 transition-colors" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Footer count */}
+        {!loadingList && filtered.length > 0 && (
+          <div className="px-4 py-2 border-t border-border/60 flex items-center justify-between">
+            <span className="text-[10px] text-muted-foreground/40 font-mono">
+              {filtered.length} cliente{filtered.length !== 1 ? "s" : ""}{search ? " encontrado" + (filtered.length !== 1 ? "s" : "") : " cadastrado" + (filtered.length !== 1 ? "s" : "")}
+            </span>
+            {selectedCount > 0 && (
+              <span className="text-[10px] text-primary/70 font-mono">
+                {selectedCount} selecionado{selectedCount !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Add Client Modal ──────────────────────────────────────────────────── */}
+      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) { setAddNome(""); setAddEmpresa(""); setAddWhats("") } }}>
+        <DialogContent className="sm:max-w-[440px]" style={{ borderRadius: "2px" }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground">
+              <UserPlus className="h-4 w-4 text-primary" />
+              Novo Cliente NPS
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {[
+              { id: "add-nome",    label: "Nome do Cliente *", value: addNome,    set: setAddNome,    placeholder: "Ex: João Silva" },
+              { id: "add-empresa", label: "Empresa",           value: addEmpresa, set: setAddEmpresa, placeholder: "Opcional" },
+              { id: "add-whats",   label: "WhatsApp *",        value: addWhats,   set: setAddWhats,   placeholder: "Ex: 5511999999999" },
+            ].map(({ id, label, value, set, placeholder }) => (
+              <div key={id} className="grid gap-2">
+                <Label htmlFor={id} className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  {label}
+                </Label>
+                <Input
+                  id={id}
+                  value={value}
+                  onChange={(e) => set(e.target.value)}
+                  placeholder={placeholder}
+                  style={{ borderRadius: "2px" }}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddOpen(false)} style={{ borderRadius: "2px" }}>
+              Cancelar
+            </Button>
+            <Button disabled={addSaving} onClick={handleAdd} className="gap-2" style={{ borderRadius: "2px" }}>
+              {addSaving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+              {addSaving ? "Salvando..." : "Adicionar Cliente"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Batch Dispatch Confirmation Modal ────────────────────────────────── */}
+      <Dialog open={dispOpen} onOpenChange={setDispOpen}>
+        <DialogContent className="sm:max-w-[480px]" style={{ borderRadius: "2px" }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground">
+              <Send className="h-4 w-4 text-primary" />
+              Confirmar Disparo NPS
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-3 space-y-4">
+            {/* Summary */}
+            <div
+              className="flex items-center gap-3 border border-primary/30 bg-primary/5 px-4 py-3"
+              style={{ borderRadius: "2px" }}
+            >
+              <Send className="h-5 w-5 text-primary flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  {selectedCount} cliente{selectedCount !== 1 ? "s" : ""} selecionado{selectedCount !== 1 ? "s" : ""}
+                </p>
+                <p className="text-xs text-muted-foreground/70">
+                  Serão criados {selectedCount} disparo{selectedCount !== 1 ? "s" : ""} com status <span className="text-yellow-400 font-mono">pendente</span>.
+                </p>
+              </div>
+            </div>
+
+            {/* Warnings */}
+            <div className="space-y-2">
+              {[
+                "As mensagens configuradas em 'Configurações NPS' serão usadas para todos os disparos.",
+                "Os disparos ficam com status 'pendente' até o n8n processá-los automaticamente.",
+                "Verifique se as mensagens estão configuradas antes de prosseguir.",
+              ].map((w, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <ShieldAlert className="h-3.5 w-3.5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-[12px] leading-relaxed text-muted-foreground/75">{w}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDispOpen(false)} style={{ borderRadius: "2px" }}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={dispatching}
+              onClick={handleDisparar}
+              className="gap-2"
+              style={{ borderRadius: "2px" }}
+            >
+              {dispatching ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+              {dispatching ? "Disparando..." : `Confirmar e Disparar`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CustomerSuccessPage() {
   const {
+
     fetchAllDisparos,
     fetchLatestRelatorio,
     triggerGerarRelatorio,
     createDisparo,
     updateDisparo,
+    fetchConfiguracoes,
+    updateConfiguracoes,
+    fetchClientes,
+    createCliente,
+    updateClienteStatus,
+    deleteCliente,
+    dispararNpsLote,
   } = useNps()
 
   // ── All disparos (for correct KPI counting) ───────────────────────────────
@@ -972,6 +1685,14 @@ export default function CustomerSuccessPage() {
             <Sparkles className="h-3.5 w-3.5" />
             Relatório IA
           </TabsTrigger>
+          <TabsTrigger value="configuracoes" className="text-xs uppercase tracking-widest font-semibold gap-2">
+            <Settings2 className="h-3.5 w-3.5" />
+            Configurações NPS
+          </TabsTrigger>
+          <TabsTrigger value="clientes" className="text-xs uppercase tracking-widest font-semibold gap-2">
+            <Users className="h-3.5 w-3.5" />
+            Clientes NPS
+          </TabsTrigger>
         </TabsList>
 
         {/* ── TAB: Feedbacks Recebidos ─────────────────────────────────────── */}
@@ -1147,6 +1868,25 @@ export default function CustomerSuccessPage() {
             loading={loadingRelatorio}
             generating={generating}
             onGerar={handleGerarRelatorio}
+          />
+        </TabsContent>
+
+        {/* ── TAB: Configurações NPS ───────────────────────────────────────── */}
+        <TabsContent value="configuracoes" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+          <ConfiguracoesNpsPanel
+            fetchConfiguracoes={fetchConfiguracoes}
+            updateConfiguracoes={updateConfiguracoes}
+          />
+        </TabsContent>
+
+        {/* ── TAB: Clientes NPS ──────────────────────────────────────────── */}
+        <TabsContent value="clientes" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+          <ClientesNpsPanel
+            fetchClientes={fetchClientes}
+            createCliente={createCliente}
+            updateClienteStatus={updateClienteStatus}
+            deleteCliente={deleteCliente}
+            dispararNpsLote={dispararNpsLote}
           />
         </TabsContent>
       </Tabs>

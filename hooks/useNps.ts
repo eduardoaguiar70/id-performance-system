@@ -32,6 +32,27 @@ export interface NpsRelatorio {
   criado_em: string
 }
 
+export interface NpsConfiguracoes {
+  id: number
+  mensagem_texto: string | null
+  mensagem_2: string | null
+  mensagem_3: string | null
+  mensagem_4: string | null
+  mensagem_5: string | null
+  instrucoes_diretoria: string | null
+  atualizado_em: string | null
+}
+
+export interface NpsCliente {
+  id: string
+  nome_cliente: string
+  empresa: string | null
+  whatsapp: string
+  status_ativo: boolean
+  ultimo_nps_em: string | null
+  proximo_nps_em: string | null
+}
+
 // ─── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useNps() {
@@ -117,11 +138,136 @@ export function useNps() {
     if (error) throw error
   }
 
+  /**
+   * Fetches the NPS configuration record (always id = 1).
+   * Returns null if the record doesn't exist yet.
+   */
+  const fetchConfiguracoes = async (): Promise<NpsConfiguracoes | null> => {
+    const { data, error } = await supabase
+      .from('nps_configuracoes')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle()
+
+    if (error) throw error
+    return data as NpsConfiguracoes | null
+  }
+
+  /**
+   * Updates (or inserts) the NPS configuration record at id = 1.
+   */
+  const updateConfiguracoes = async (payload: {
+    mensagem_texto: string
+    mensagem_2?: string
+    mensagem_3?: string
+    mensagem_4?: string
+    mensagem_5?: string
+    instrucoes_diretoria?: string
+  }): Promise<void> => {
+    const { error } = await supabase
+      .from('nps_configuracoes')
+      .upsert({ id: 1, ...payload, atualizado_em: new Date().toISOString() }, { onConflict: 'id' })
+
+    if (error) throw error
+  }
+
+  // ─── nps_clientes ────────────────────────────────────────────────────────────
+
+  /** Fetches all clients from nps_clientes ordered by nome_cliente. */
+  const fetchClientes = async (): Promise<NpsCliente[]> => {
+    const { data, error } = await supabase
+      .from('nps_clientes')
+      .select('*')
+      .order('nome_cliente', { ascending: true })
+
+    if (error) throw error
+    return (data ?? []) as NpsCliente[]
+  }
+
+  /** Creates a new client record. */
+  const createCliente = async (payload: {
+    nome_cliente: string
+    empresa?: string
+    whatsapp: string
+  }): Promise<void> => {
+    const { error } = await supabase
+      .from('nps_clientes')
+      .insert({ ...payload, status_ativo: true })
+
+    if (error) throw error
+  }
+
+  /** Toggles status_ativo for a client. */
+  const updateClienteStatus = async (id: string, status_ativo: boolean): Promise<void> => {
+    const { error } = await supabase
+      .from('nps_clientes')
+      .update({ status_ativo })
+      .eq('id', id)
+
+    if (error) throw error
+  }
+
+  /** Permanently deletes a client record. */
+  const deleteCliente = async (id: string): Promise<void> => {
+    const { error } = await supabase.from('nps_clientes').delete().eq('id', id)
+    if (error) throw error
+  }
+
+  /**
+   * Batch NPS dispatch:
+   * 1. Reads the active messages from nps_configuracoes (id = 1).
+   * 2. Bulk-inserts one nps_disparos row per selected client with status = 'pendente'.
+   * Returns the number of records inserted.
+   */
+  const dispararNpsLote = async (clienteIds: string[]): Promise<number> => {
+    if (clienteIds.length === 0) return 0
+
+    // 1 — fetch active config messages
+    const config = await fetchConfiguracoes()
+    if (!config?.mensagem_texto) {
+      throw new Error('Nenhuma mensagem configurada em Configurações NPS. Configure a Mensagem 1 antes de disparar.')
+    }
+
+    // 2 — fetch selected clients
+    const { data: clientes, error: clientesError } = await supabase
+      .from('nps_clientes')
+      .select('id, nome_cliente, whatsapp, empresa')
+      .in('id', clienteIds)
+
+    if (clientesError) throw clientesError
+    if (!clientes || clientes.length === 0) throw new Error('Nenhum cliente encontrado para os IDs selecionados.')
+
+    // 3 — build batch payload
+    const rows = clientes.map((c) => ({
+      cliente_nome:    c.nome_cliente,
+      cliente_whatsapp: c.whatsapp,
+      empresa:          c.empresa ?? null,
+      mensagem_texto:   config.mensagem_texto,
+      mensagem_2:       config.mensagem_2 ?? null,
+      mensagem_3:       config.mensagem_3 ?? null,
+      mensagem_4:       config.mensagem_4 ?? null,
+      mensagem_5:       config.mensagem_5 ?? null,
+      status:           'pendente',
+    }))
+
+    const { error: insertError } = await supabase.from('nps_disparos').insert(rows)
+    if (insertError) throw insertError
+
+    return rows.length
+  }
+
   return {
     fetchAllDisparos,
     fetchLatestRelatorio,
     triggerGerarRelatorio,
     createDisparo,
     updateDisparo,
+    fetchConfiguracoes,
+    updateConfiguracoes,
+    fetchClientes,
+    createCliente,
+    updateClienteStatus,
+    deleteCliente,
+    dispararNpsLote,
   }
 }
