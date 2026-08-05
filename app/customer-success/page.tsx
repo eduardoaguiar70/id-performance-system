@@ -709,8 +709,11 @@ export default function CustomerSuccessPage() {
     try {
       const all = await fetchAllDisparos()
       setAllDisparos(all)
-      // Feedbacks = records where client has already replied
-      setFeedbacks(all.filter((d) => d.respostas_cliente && d.respostas_cliente.trim() !== ""))
+      // Feedbacks = records where client has already replied or are active/completed
+      setFeedbacks(all.filter((d) => {
+        const s = (d.status ?? "").toLowerCase().replace(/[\s-]/g, "_")
+        return s === "em_andamento" || s === "concluido" || s === "concluído" || s === "finalizado" || (d.respostas_cliente && d.respostas_cliente.trim() !== "")
+      }))
       // Queue = pending or recently sent (awaiting dispatch window)
       setDisparosPendentes(all.filter((d) => d.status === "pendente" || d.status === "enviado"))
     } catch (err: any) {
@@ -755,10 +758,11 @@ export default function CustomerSuccessPage() {
       return v === "concluido" || v === "concluído" || v === "finalizado"
     }).length
 
-    // Total feedbacks = those with at least one client reply
-    const totalFeedbacks = allDisparos.filter(
-      (d) => d.respostas_cliente && d.respostas_cliente.trim() !== ""
-    ).length
+    // Total feedbacks = active, completed or those with at least one client reply
+    const totalFeedbacks = allDisparos.filter((d) => {
+      const s = (d.status ?? "").toLowerCase().replace(/[\s-]/g, "_")
+      return s === "em_andamento" || s === "concluido" || s === "concluído" || s === "finalizado" || (d.respostas_cliente && d.respostas_cliente.trim() !== "")
+    }).length
 
     return { npsMedia, emAndamento, concluido, totalFeedbacks }
   }, [allDisparos])
