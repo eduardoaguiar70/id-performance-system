@@ -20,7 +20,6 @@ import {
   Settings,
   Send,
   GitMerge,
-  ScrollText,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"

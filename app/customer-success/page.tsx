@@ -1081,7 +1081,11 @@ function ClientesNpsPanel({
   const toggleOne = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
@@ -1460,7 +1464,6 @@ export default function CustomerSuccessPage() {
     fetchAllDisparos,
     fetchLatestRelatorio,
     triggerGerarRelatorio,
-    createDisparo,
     updateDisparo,
     fetchConfiguracoes,
     updateConfiguracoes,
@@ -1506,6 +1509,7 @@ export default function CustomerSuccessPage() {
       setClientSearchTerm("")
       setDataAgendamento("")
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isModalOpen])
 
   // ── Modal — editar disparo ────────────────────────────────────────────────
