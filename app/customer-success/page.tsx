@@ -146,6 +146,35 @@ function buildChatFlow(disparo: NpsDisparo) {
   return flow
 }
 
+function calcularDatasNPS(disparosDoCliente: NpsDisparo[]) {
+  if (!disparosDoCliente || disparosDoCliente.length === 0) {
+    return { ultimo: '-', proximo: 'Aguardando 1º Disparo' }
+  }
+
+  // Pega o último disparo válido (não pendente e não cancelado)
+  const disparosValidos = disparosDoCliente
+    .filter((d) => d.enviado_em && d.status !== 'pendente' && d.status !== 'cancelado')
+    .sort((a, b) => new Date(b.enviado_em!).getTime() - new Date(a.enviado_em!).getTime())
+
+  if (disparosValidos.length === 0) {
+    return { ultimo: '-', proximo: 'Aguardando 1º Disparo' }
+  }
+
+  const dataUltimo = new Date(disparosValidos[0].enviado_em!)
+  const dataProximo = new Date(dataUltimo)
+  dataProximo.setDate(dataProximo.getDate() + 90) // Regra dos 90 dias
+
+  const formatar = (d: Date) => {
+    // Usamos UTC para evitar que a data mude pelo fuso horário
+    return d.toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+  }
+
+  return {
+    ultimo: formatar(dataUltimo),
+    proximo: formatar(dataProximo)
+  }
+}
+
 // ─── Badge components ──────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string | null }) {
@@ -1003,12 +1032,14 @@ function ConfiguracoesNpsPanel({
 // ─── Clientes NPS Panel ───────────────────────────────────────────────────────
 
 function ClientesNpsPanel({
+  allDisparos,
   fetchClientes,
   createCliente,
   updateClienteStatus,
   deleteCliente,
   dispararNpsLote,
 }: {
+  allDisparos: NpsDisparo[]
   fetchClientes: () => Promise<NpsCliente[]>
   createCliente: (p: { nome_cliente: string; empresa?: string; whatsapp: string }) => Promise<void>
   updateClienteStatus: (id: string, status: boolean) => Promise<void>
@@ -1288,15 +1319,25 @@ function ClientesNpsPanel({
                     )}
                   </div>
 
-                  {/* Último NPS */}
-                  <span className="text-[10px] font-mono text-muted-foreground/50 text-right hidden sm:block">
-                    {c.ultimo_nps_em ? formatBRTDisplay(c.ultimo_nps_em) : "—"}
-                  </span>
+                  {(() => {
+                    const disparosDoCliente = allDisparos.filter(
+                      (d) => d.cliente_whatsapp === c.whatsapp || (c.nome_cliente && d.cliente_nome === c.nome_cliente)
+                    )
+                    const datasNPS = calcularDatasNPS(disparosDoCliente)
+                    return (
+                      <>
+                        {/* Último NPS */}
+                        <span className="text-[10px] font-mono text-muted-foreground/50 text-right hidden sm:block">
+                          {datasNPS.ultimo}
+                        </span>
 
-                  {/* Próximo NPS */}
-                  <span className="text-[10px] font-mono text-muted-foreground/50 text-right hidden md:block">
-                    {c.proximo_nps_em ? formatBRTDisplay(c.proximo_nps_em) : "—"}
-                  </span>
+                        {/* Próximo NPS */}
+                        <span className="text-[10px] font-mono text-muted-foreground/50 text-right hidden md:block">
+                          {datasNPS.proximo}
+                        </span>
+                      </>
+                    )
+                  })()}
 
                   {/* Actions */}
                   <div className="flex items-center justify-end gap-1">
@@ -2046,6 +2087,7 @@ export default function CustomerSuccessPage() {
         {/* ── TAB: Clientes NPS ──────────────────────────────────────────── */}
         <TabsContent value="clientes" className="m-0 focus-visible:outline-none focus-visible:ring-0">
           <ClientesNpsPanel
+            allDisparos={allDisparos}
             fetchClientes={fetchClientes}
             createCliente={createCliente}
             updateClienteStatus={updateClienteStatus}

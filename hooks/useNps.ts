@@ -24,6 +24,7 @@ export interface NpsDisparo {
   nps_classificacao: string | null
   data_agendamento: string | null
   criado_em: string | null
+  enviado_em?: string | null
 }
 
 export interface NpsRelatorio {
