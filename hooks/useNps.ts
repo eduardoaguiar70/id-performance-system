@@ -213,13 +213,7 @@ export function useNps() {
     if (error) throw error
   }
 
-  /**
-   * Batch NPS dispatch:
-   * 1. Reads the active messages from nps_configuracoes (id = 1).
-   * 2. Bulk-inserts one nps_disparos row per selected client with status = 'pendente'.
-   * Returns the number of records inserted.
-   */
-  const dispararNpsLote = async (clienteIds: string[]): Promise<number> => {
+  const dispararNpsLote = async (clienteIds: string[], dataAgendamento?: string | null): Promise<number> => {
     if (clienteIds.length === 0) return 0
 
     // 1 — fetch active config messages
@@ -248,6 +242,7 @@ export function useNps() {
       mensagem_4:       config.mensagem_4 ?? null,
       mensagem_5:       config.mensagem_5 ?? null,
       status:           'pendente',
+      data_agendamento: dataAgendamento || new Date().toISOString(),
     }))
 
     const { error: insertError } = await supabase.from('nps_disparos').insert(rows)

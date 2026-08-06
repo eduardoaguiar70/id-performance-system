@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
 import {
   Heart, TrendingUp, Clock, CheckCircle2, Users,
@@ -566,13 +567,70 @@ function RelatorioPanel({
   loading,
   generating,
   onGerar,
+  fetchConfiguracoes,
+  updateConfiguracoes,
 }: {
   relatorio: NpsRelatorio | null
   loading: boolean
   generating: boolean
   onGerar: () => void
+  fetchConfiguracoes: () => Promise<NpsConfiguracoes | null>
+  updateConfiguracoes: (payload: {
+    mensagem_texto: string
+    mensagem_2?: string
+    mensagem_3?: string
+    mensagem_4?: string
+    mensagem_5?: string
+    instrucoes_diretoria?: string
+  }) => Promise<void>
 }) {
   const sections = relatorio ? parseMarkdownSections(relatorio.conteudo_markdown) : []
+
+  // Settings State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [instrucoesIA, setInstrucoesIA] = useState("")
+  const [loadingCfg, setLoadingCfg] = useState(false)
+  const [savingCfg, setSavingCfg] = useState(false)
+
+  const handleOpenSettings = async () => {
+    setIsSettingsOpen(true)
+    setLoadingCfg(true)
+    try {
+      const config = await fetchConfiguracoes()
+      if (config) {
+        setInstrucoesIA(config.instrucoes_diretoria ?? "")
+      }
+    } catch (err: any) {
+      toast.error("Erro ao carregar configurações da IA: " + err.message)
+    } finally {
+      setLoadingCfg(false)
+    }
+  }
+
+  const handleSaveSettings = async () => {
+    setSavingCfg(true)
+    try {
+      const config = await fetchConfiguracoes()
+      if (!config) {
+        toast.error("Configuração não encontrada.")
+        return
+      }
+      await updateConfiguracoes({
+        mensagem_texto: config.mensagem_texto ?? "",
+        mensagem_2: config.mensagem_2 ?? undefined,
+        mensagem_3: config.mensagem_3 ?? undefined,
+        mensagem_4: config.mensagem_4 ?? undefined,
+        mensagem_5: config.mensagem_5 ?? undefined,
+        instrucoes_diretoria: instrucoesIA || undefined,
+      })
+      toast.success("Instruções para a IA salvas com sucesso!")
+      setIsSettingsOpen(false)
+    } catch (err: any) {
+      toast.error("Erro ao salvar: " + err.message)
+    } finally {
+      setSavingCfg(false)
+    }
+  }
 
   // Order sections by type priority
   const typeOrder: ReportSection["type"][] = ["resumo", "fortes", "gargalos", "risco", "acao", "other"]
@@ -601,20 +659,76 @@ function RelatorioPanel({
             </span>
           )}
         </div>
-        <Button
-          size="sm"
-          onClick={onGerar}
-          disabled={generating}
-          className="gap-2 text-xs"
-          style={{ borderRadius: "2px" }}
-        >
-          {generating ? (
-            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Sparkles className="h-3.5 w-3.5" />
-          )}
-          {generating ? "Gerando relatório..." : "Gerar Novo Relatório com IA"}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+            <DialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleOpenSettings}
+                className="gap-2 text-xs"
+                style={{ borderRadius: "2px" }}
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                Configurar IA
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]" style={{ borderRadius: "2px" }}>
+              <DialogHeader>
+                <DialogTitle className="text-foreground flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Instruções para a IA
+                </DialogTitle>
+              </DialogHeader>
+              <div className="py-4">
+                {loadingCfg ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-32" style={{ borderRadius: "2px" }} />
+                    <Skeleton className="h-24 w-full" style={{ borderRadius: "2px" }} />
+                  </div>
+                ) : (
+                  <div className="grid gap-2">
+                    <Label htmlFor="instrucoes-ia" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      Diretrizes para o Relatório Executivo
+                    </Label>
+                    <Textarea
+                      id="instrucoes-ia"
+                      value={instrucoesIA}
+                      onChange={(e) => setInstrucoesIA(e.target.value)}
+                      placeholder="Ex: Priorize clientes detratores no resumo. Sempre sugira ações de retenção proativa..."
+                      rows={5}
+                      className="resize-none text-sm leading-relaxed bg-background/50 border-border/80 focus:border-primary/50 transition-colors"
+                      style={{ borderRadius: "2px" }}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Estas instruções guiarão a IA na geração do próximo relatório.
+                    </p>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button disabled={savingCfg || loadingCfg} onClick={handleSaveSettings} style={{ borderRadius: "2px" }}>
+                  {savingCfg ? "Salvando..." : "Salvar Configurações"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Button
+            size="sm"
+            onClick={onGerar}
+            disabled={generating}
+            className="gap-2 text-xs"
+            style={{ borderRadius: "2px" }}
+          >
+            {generating ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            {generating ? "Gerando relatório..." : "Gerar Novo Relatório com IA"}
+          </Button>
+        </div>
       </div>
 
       {/* Content */}
@@ -678,7 +792,6 @@ function ConfiguracoesNpsPanel({
   const [msg3, setMsg3] = useState("")
   const [msg4, setMsg4] = useState("")
   const [msg5, setMsg5] = useState("")
-  const [instrucoes, setInstrucoes] = useState("")
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
 
   useEffect(() => {
@@ -692,7 +805,6 @@ function ConfiguracoesNpsPanel({
           setMsg3(config.mensagem_3 ?? "")
           setMsg4(config.mensagem_4 ?? "")
           setMsg5(config.mensagem_5 ?? "")
-          setInstrucoes(config.instrucoes_diretoria ?? "")
           setLastUpdated(config.atualizado_em)
         }
       } catch (err: any) {
@@ -711,13 +823,14 @@ function ConfiguracoesNpsPanel({
     }
     setSaving(true)
     try {
+      const config = await fetchConfiguracoes()
       await updateConfiguracoes({
         mensagem_texto: msg1,
         mensagem_2: msg2 || undefined,
         mensagem_3: msg3 || undefined,
         mensagem_4: msg4 || undefined,
         mensagem_5: msg5 || undefined,
-        instrucoes_diretoria: instrucoes || undefined,
+        instrucoes_diretoria: config?.instrucoes_diretoria || undefined,
       })
       setLastUpdated(new Date().toISOString())
       toast.success("Configurações salvas com sucesso!")
@@ -796,26 +909,6 @@ function ConfiguracoesNpsPanel({
                     />
                   </div>
                 ))}
-
-                {/* Instrucoes diretoria */}
-                <div className="grid gap-2 pt-1 border-t border-border/40">
-                  <Label
-                    htmlFor="cfg-instrucoes"
-                    className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
-                  >
-                    Instruções para a IA (Relatório Executivo)
-                    <span className="text-[9px] text-muted-foreground/40 normal-case tracking-normal font-normal">(opcional)</span>
-                  </Label>
-                  <Textarea
-                    id="cfg-instrucoes"
-                    value={instrucoes}
-                    onChange={(e) => setInstrucoes(e.target.value)}
-                    placeholder="Ex: Priorize clientes detratores no resumo. Sempre sugira ações de retenção proativa..."
-                    rows={4}
-                    className="resize-none text-sm leading-relaxed bg-background/50 border-border/80 focus:border-primary/50 transition-colors"
-                    style={{ borderRadius: "2px" }}
-                  />
-                </div>
               </>
             )}
             <div className="flex items-center justify-between pt-2 border-t border-border/60">
@@ -1394,16 +1487,26 @@ export default function CustomerSuccessPage() {
 
   // ── Modal — novo disparo ──────────────────────────────────────────────────
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [clienteNome, setClienteNome] = useState("")
-  const [clienteWhatsapp, setClienteWhatsapp] = useState("")
-  const [empresa, setEmpresa] = useState("")
-  const [mensagem1, setMensagem1] = useState("")
-  const [mensagem2, setMensagem2] = useState("")
-  const [mensagem3, setMensagem3] = useState("")
-  const [mensagem4, setMensagem4] = useState("")
-  const [mensagem5, setMensagem5] = useState("")
+  const [activeClients, setActiveClients] = useState<NpsCliente[]>([])
+  const [selectedClients, setSelectedClients] = useState<string[]>([])
+  const [clientSearchTerm, setClientSearchTerm] = useState("")
   const [dataAgendamento, setDataAgendamento] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (isModalOpen) {
+      fetchClientes().then(clients => {
+        setActiveClients(clients.filter(c => c.status_ativo))
+      }).catch(err => {
+        toast.error("Erro ao carregar clientes: " + err.message)
+      })
+    } else {
+      setSelectedClients([])
+      setClientSearchTerm("")
+      setDataAgendamento("")
+    }
+  }, [isModalOpen])
 
   // ── Modal — editar disparo ────────────────────────────────────────────────
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -1487,31 +1590,18 @@ export default function CustomerSuccessPage() {
   // ── CRUD handlers ─────────────────────────────────────────────────────────
 
   const handleCriarDisparo = async () => {
-    if (!clienteNome || !clienteWhatsapp || !dataAgendamento || !mensagem1) {
-      toast.error("Preencha os campos obrigatórios: Nome, WhatsApp, Mensagem 1 e Data de Agendamento.")
+    if (selectedClients.length === 0) {
+      toast.error("Selecione pelo menos um cliente para o disparo.")
       return
     }
     setIsSubmitting(true)
     try {
-      await createDisparo({
-        cliente_nome: clienteNome,
-        cliente_whatsapp: clienteWhatsapp,
-        empresa,
-        mensagem_texto: mensagem1,
-        mensagem_2: mensagem2,
-        mensagem_3: mensagem3,
-        mensagem_4: mensagem4,
-        mensagem_5: mensagem5,
-        data_agendamento: toBRTISO(dataAgendamento),
-      })
-      toast.success("Disparo manual criado com sucesso!")
+      const insertedCount = await dispararNpsLote(selectedClients, dataAgendamento ? toBRTISO(dataAgendamento) : null)
+      toast.success(`${insertedCount} disparo(s) enfileirado(s) com sucesso!`)
       setIsModalOpen(false)
-      setClienteNome(""); setClienteWhatsapp(""); setEmpresa("")
-      setMensagem1(""); setMensagem2(""); setMensagem3(""); setMensagem4(""); setMensagem5("")
-      setDataAgendamento("")
       loadDisparos()
     } catch (err: any) {
-      toast.error("Erro ao criar disparo: " + err.message)
+      toast.error("Erro ao enfileirar disparos: " + err.message)
     } finally {
       setIsSubmitting(false)
     }
@@ -1593,31 +1683,99 @@ export default function CustomerSuccessPage() {
               <DialogTitle className="text-foreground">Novo Disparo Manual</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
-              {[
-                { id: "nome", label: "Nome do Cliente *", value: clienteNome, set: setClienteNome, placeholder: "Ex: João Silva" },
-                { id: "whatsapp", label: "WhatsApp *", value: clienteWhatsapp, set: setClienteWhatsapp, placeholder: "Ex: 5511999999999" },
-                { id: "empresa", label: "Empresa", value: empresa, set: setEmpresa, placeholder: "Opcional" },
-              ].map(({ id, label, value, set, placeholder }) => (
-                <div key={id} className="grid gap-2">
-                  <Label htmlFor={id} className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</Label>
-                  <Input id={id} value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder} style={{ borderRadius: "2px" }} />
+              
+              <div className="space-y-4">
+                <div className="flex flex-col gap-2">
+                  <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    Selecione os Clientes (Ativos)
+                  </Label>
+                  <Input
+                    placeholder="Pesquisar por nome ou empresa..."
+                    value={clientSearchTerm}
+                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                    className="h-8 text-sm"
+                    style={{ borderRadius: "2px" }}
+                  />
                 </div>
-              ))}
-              {[
-                { id: "msg1", label: "Mensagem 1 (Apresentação / Saudação) *", value: mensagem1, set: setMensagem1, placeholder: "Obrigatório" },
-                { id: "msg2", label: "Mensagem 2 (Pergunta da Nota 1–5)", value: mensagem2, set: setMensagem2 },
-                { id: "msg3", label: "Mensagem 3 (Pergunta do Motivo)", value: mensagem3, set: setMensagem3 },
-                { id: "msg4", label: "Mensagem 4 (Opcional)", value: mensagem4, set: setMensagem4 },
-                { id: "msg5", label: "Mensagem 5 (Opcional)", value: mensagem5, set: setMensagem5 },
-              ].map(({ id, label, value, set, placeholder }) => (
-                <div key={id} className="grid gap-2">
-                  <Label htmlFor={id} className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</Label>
-                  <Textarea id={id} value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder || "Opcional"} className="resize-none" style={{ borderRadius: "2px" }} />
+                
+                <div className="border border-border/60 bg-muted/20 p-2 space-y-1.5 overflow-y-auto max-h-[250px]" style={{ borderRadius: "2px" }}>
+                  {activeClients
+                    .filter((c) =>
+                      c.nome_cliente.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+                      (c.empresa && c.empresa.toLowerCase().includes(clientSearchTerm.toLowerCase()))
+                    )
+                    .map((cliente) => (
+                      <label
+                        key={cliente.id}
+                        className="flex items-center gap-2.5 p-2 rounded-sm hover:bg-muted/40 cursor-pointer transition-colors"
+                      >
+                        <Checkbox
+                          checked={selectedClients.includes(cliente.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedClients((prev) => [...prev, cliente.id])
+                            } else {
+                              setSelectedClients((prev) => prev.filter((id) => id !== cliente.id))
+                            }
+                          }}
+                        />
+                        <div className="flex flex-col gap-0.5 leading-none">
+                          <span className="text-sm font-medium text-foreground">
+                            {cliente.nome_cliente}
+                            {cliente.empresa && (
+                              <span className="text-muted-foreground font-normal ml-1.5 text-xs">
+                                ({cliente.empresa})
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {cliente.whatsapp}
+                          </span>
+                        </div>
+                      </label>
+                    ))}
+                  {activeClients.length > 0 && activeClients.filter((c) =>
+                    c.nome_cliente.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+                    (c.empresa && c.empresa.toLowerCase().includes(clientSearchTerm.toLowerCase()))
+                  ).length === 0 && (
+                    <div className="text-xs text-muted-foreground text-center py-4">
+                      Nenhum cliente encontrado.
+                    </div>
+                  )}
+                  {activeClients.length === 0 && (
+                    <div className="text-xs text-muted-foreground text-center py-4">
+                      Carregando ou nenhum cliente ativo encontrado...
+                    </div>
+                  )}
                 </div>
-              ))}
+                
+                <div className="flex items-center gap-2 py-1 px-1">
+                  <span className="text-xs text-muted-foreground bg-muted/40 px-2 py-1 rounded border border-border/50">
+                    {selectedClients.length} cliente(s) selecionado(s)
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Os textos das mensagens serão preenchidos automaticamente conforme as configurações ativas.
+                  </span>
+                </div>
+              </div>
+
               <div className="grid gap-2">
-                <Label htmlFor="data" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Data de Agendamento *</Label>
-                <Input id="data" type="datetime-local" value={dataAgendamento} onChange={(e) => setDataAgendamento(e.target.value)} style={{ borderRadius: "2px" }} />
+                <Label htmlFor="data" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Data de Agendamento
+                </Label>
+                <div className="flex items-center gap-3">
+                  <Input 
+                    id="data" 
+                    type="datetime-local" 
+                    value={dataAgendamento} 
+                    onChange={(e) => setDataAgendamento(e.target.value)} 
+                    style={{ borderRadius: "2px" }} 
+                    className="flex-1"
+                  />
+                  <span className="text-xs text-muted-foreground/60 w-32">
+                    Deixe em branco para disparar imediatamente.
+                  </span>
+                </div>
               </div>
             </div>
             <DialogFooter>
@@ -1868,6 +2026,8 @@ export default function CustomerSuccessPage() {
             loading={loadingRelatorio}
             generating={generating}
             onGerar={handleGerarRelatorio}
+            fetchConfiguracoes={fetchConfiguracoes}
+            updateConfiguracoes={updateConfiguracoes}
           />
         </TabsContent>
 
