@@ -309,13 +309,13 @@ function ChatPanel({ disparo }: { disparo: NpsDisparo | null }) {
         {flow.map((msg, idx) => (
           <div key={idx} className={`flex w-full ${msg.type === "system" ? "justify-end" : "justify-start"}`}>
             <div
-              className={`max-w-[85%] px-3.5 py-2.5 text-xs leading-relaxed ${
+              className={`max-w-[85%] px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-wrap ${
                 msg.type === "system"
                   ? "bg-green-500/20 border border-green-500/30 text-green-100 rounded-2xl rounded-tr-sm shadow-sm"
                   : "bg-muted/40 border border-border/50 text-foreground/80 rounded-2xl rounded-tl-sm shadow-sm"
               }`}
             >
-              {msg.text}
+              {msg.text.replace(/\\n/g, '\n')}
             </div>
           </div>
         ))}
