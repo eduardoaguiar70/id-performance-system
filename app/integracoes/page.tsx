@@ -1,100 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { toast } from "sonner";
-import { Loader2, Server, Save, Search } from "lucide-react";
-
-interface IntegracaoConfig {
-  id?: number;
-  google_customer_id: string;
-  google_developer_token: string;
-}
+import { Server, Search, BarChart3, ShoppingBag, Building2 } from "lucide-react";
+import { useCliente } from "@/context/ClienteContext";
+import { OauthProviderCard } from "@/components/integracoes/oauth-provider-card";
 
 export default function IntegracoesPage() {
-  const [config, setConfig] = useState<IntegracaoConfig>({
-    google_customer_id: "",
-    google_developer_token: "",
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [configId, setConfigId] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetchConfig();
-  }, []);
-
-  const fetchConfig = async () => {
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from("configuracoes_integracoes")
-        .select("*")
-        .limit(1)
-        .single();
-
-      if (error && error.code !== "PGRST116") {
-        // PGRST116 is the "no rows returned" error, which is fine if empty
-        console.error("Erro ao buscar integrações:", error);
-        toast.error("Não foi possível carregar as configurações.");
-      }
-
-      if (data) {
-        setConfigId(data.id);
-        setConfig({
-          google_customer_id: data.google_customer_id || "",
-          google_developer_token: data.google_developer_token || "",
-        });
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      setIsSaving(true);
-
-      const payload = {
-        google_customer_id: config.google_customer_id,
-        google_developer_token: config.google_developer_token,
-        ...(configId ? { id: configId } : {}),
-      };
-
-      const { data, error } = await supabase
-        .from("configuracoes_integracoes")
-        .upsert(payload, { onConflict: "id" })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        setConfigId(data.id);
-      }
-
-      toast.success("Integrações salvas com sucesso!");
-    } catch (error) {
-      console.error("Erro ao salvar integrações:", error);
-      toast.error("Ocorreu um erro ao salvar as credenciais.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleChange = (field: keyof IntegracaoConfig, value: string) => {
-    setConfig((prev) => ({ ...prev, [field]: value }));
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full w-full">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  const { clienteSelecionado } = useCliente();
 
   return (
     <div className="p-8 max-w-6xl mx-auto flex flex-col gap-8">
@@ -108,25 +19,12 @@ export default function IntegracoesPage() {
             Gerencie as credenciais das plataformas de anúncios. Estas chaves são utilizadas pelo motor de automação (n8n) para sincronizar leads e campanhas.
           </p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="group relative flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-3 font-bold uppercase tracking-widest text-sm transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
-        >
-          {isSaving ? (
-            <Loader2 className="w-4 h-4 animate-spin relative z-10" />
-          ) : (
-            <Save className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform" />
-          )}
-          <span className="relative z-10">Salvar Alterações</span>
-          <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform ease-out duration-300" />
-        </button>
       </div>
 
       {/* GRID: 2 columns, sharp borders, minimal padding */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* BLOCO META ADS — Gerenciado via backend */}
+
+        {/* BLOCO META ADS — Gerenciado via backend (NÃO MEXER) */}
         <div className="relative group flex flex-col border border-green-500/30 bg-card p-8 transition-colors hover:border-green-500/50">
           {/* Ícone de fundo decorativo */}
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -190,51 +88,49 @@ export default function IntegracoesPage() {
           </div>
         </div>
 
-
-        {/* BLOCO GOOGLE ADS */}
-        <div className="relative group flex flex-col border border-border/50 bg-card p-8 transition-colors hover:border-primary/50">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Search className="w-24 h-24" />
+        {/* BLOCOS OAUTH — dependem do cliente selecionado no header */}
+        {!clienteSelecionado ? (
+          <div className="flex flex-col items-center justify-center min-h-[300px] text-muted-foreground border border-border/50 bg-card">
+            <Building2 className="h-12 w-12 mb-4 opacity-30" />
+            <p className="text-lg font-medium">Nenhum cliente selecionado</p>
+            <p className="text-sm mt-1">Use o seletor no topo para escolher um cliente</p>
           </div>
-          
-          <div className="relative z-10 mb-8">
-            <h2 className="text-2xl font-bold tracking-tight uppercase flex items-center gap-3">
-              <span className="w-3 h-3 bg-orange-500 block" />
-              Google Ads
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">Configuração de acesso via Google API</p>
-          </div>
+        ) : (
+          <>
+            <OauthProviderCard
+              contaId={clienteSelecionado.conta_id}
+              provider="google_ads"
+              label="Google Ads"
+              description="Conexão OAuth por cliente via Google Ads API"
+              icon={<Search className="w-24 h-24" />}
+              accentColorClass="bg-orange-500"
+              authorizeUrl={(contaId) => `/api/oauth/google/authorize?provider=google_ads&conta_id=${encodeURIComponent(contaId)}`}
+            />
 
-          <div className="flex flex-col gap-6 relative z-10">
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                ID do Cliente (Customer ID)
-              </label>
-              <input
-                type="text"
-                value={config.google_customer_id}
-                onChange={(e) => handleChange("google_customer_id", e.target.value)}
-                placeholder="123-456-7890"
-                className="w-full bg-background border border-border px-4 py-3 text-sm outline-none focus:border-orange-500 transition-colors placeholder:text-muted-foreground/30 font-mono tracking-wider rounded-none"
-              />
-              <p className="text-[11px] text-muted-foreground/70">Pode conter traços. Ex: 123-456-7890 ou 1234567890</p>
-            </div>
+            <OauthProviderCard
+              contaId={clienteSelecionado.conta_id}
+              provider="ga4"
+              label="Google Analytics 4"
+              description="Conexão OAuth por cliente via GA4 Data API"
+              icon={<BarChart3 className="w-24 h-24" />}
+              accentColorClass="bg-yellow-500"
+              authorizeUrl={(contaId) => `/api/oauth/google/authorize?provider=ga4&conta_id=${encodeURIComponent(contaId)}`}
+            />
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex justify-between">
-                Developer Token
-                <span className="text-[10px] text-orange-500/80">Obrigatório</span>
-              </label>
-              <input
-                type="password"
-                value={config.google_developer_token}
-                onChange={(e) => handleChange("google_developer_token", e.target.value)}
-                placeholder="Insira o Developer Token"
-                className="w-full bg-background border border-border px-4 py-3 text-sm outline-none focus:border-orange-500 transition-colors placeholder:text-muted-foreground/30 font-mono rounded-none"
-              />
-            </div>
-          </div>
-        </div>
+            <OauthProviderCard
+              contaId={clienteSelecionado.conta_id}
+              provider="shopify"
+              label="Shopify"
+              description="Instalação do app Shopify por loja"
+              icon={<ShoppingBag className="w-24 h-24" />}
+              accentColorClass="bg-green-600"
+              requiresShopDomain
+              authorizeUrl={(contaId, shop) =>
+                `/api/oauth/shopify/install?conta_id=${encodeURIComponent(contaId)}&shop=${encodeURIComponent(shop ?? "")}`
+              }
+            />
+          </>
+        )}
 
       </div>
     </div>
