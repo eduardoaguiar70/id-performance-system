@@ -15,11 +15,19 @@ interface Balde {
   faturamento: number;
   pedidos: number;
   sessoes: number;
+  sessoes_midia: number;
 }
 
 type Fonte = { ok: true; detalhe?: string } | { ok: false; motivo: string };
 
-const vazio = (): Balde => ({ investimento_meta: 0, investimento_google: 0, faturamento: 0, pedidos: 0, sessoes: 0 });
+const vazio = (): Balde => ({
+  investimento_meta: 0,
+  investimento_google: 0,
+  faturamento: 0,
+  pedidos: 0,
+  sessoes: 0,
+  sessoes_midia: 0,
+});
 
 // "18/09/2026" -> "2026-09-18"
 const isoDeRotuloDia = (r: string) => r.split("/").reverse().join("-");
@@ -94,6 +102,7 @@ export async function GET(req: NextRequest) {
       b.faturamento += l.receita;
       b.pedidos += l.compras;
       b.sessoes += l.sessoes;
+      b.sessoes_midia += l.sessoes_midia;
     }
     funil = {
       visualizacoes_pagina: r.totais.visualizacoes_pagina,

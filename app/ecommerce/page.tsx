@@ -8,6 +8,7 @@ import { Ga4Tab } from "@/components/ecommerce/ga4-tab";
 import { GoogleAdsTab } from "@/components/ecommerce/google-ads-tab";
 import { MetaAdsTab } from "@/components/ecommerce/meta-ads-tab";
 import { VisaoGeralTab } from "@/components/ecommerce/visao-geral-tab";
+import { ProjecoesTab } from "@/components/ecommerce/projecoes-tab";
 
 const ABAS = [
   { id: "visao_geral", label: "Visão Geral" },
@@ -88,6 +89,8 @@ export default function EcommercePage() {
         </div>
       ) : aba === "visao_geral" ? (
         <VisaoGeralTab key={clienteSelecionado.conta_id} contaId={clienteSelecionado.conta_id} />
+      ) : aba === "projecoes" ? (
+        <ProjecoesTab key={clienteSelecionado.conta_id} contaId={clienteSelecionado.conta_id} />
       ) : aba !== "trafego" ? (
         <EmConstrucao nome={nomeAba} />
       ) : (
