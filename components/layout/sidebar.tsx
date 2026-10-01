@@ -20,6 +20,7 @@ import {
   Settings,
   Send,
   GitMerge,
+  ShoppingCart,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -72,6 +73,7 @@ const groups: NavGroup[] = [
   {
     label: "Analytics & ADS",
     items: [
+      { name: "E-commerce", href: "/ecommerce", icon: ShoppingCart },
       { name: "Campanhas", href: "/campanhas", icon: Megaphone },
       { name: "KPIs",      href: "/kpis",      icon: TrendingUp },
     ],

@@ -1,11 +1,37 @@
 "use client";
 
+import { useEffect } from "react";
+import { toast } from "sonner";
 import { Server, Search, BarChart3, ShoppingBag, Building2 } from "lucide-react";
 import { useCliente } from "@/context/ClienteContext";
 import { OauthProviderCard } from "@/components/integracoes/oauth-provider-card";
+import { Ga4PropertyPicker } from "@/components/integracoes/ga4-property-picker";
+
+const PROVIDER_LABELS: Record<string, string> = {
+  google_ads: "Google Ads",
+  ga4: "Google Analytics 4",
+  shopify: "Shopify",
+};
 
 export default function IntegracoesPage() {
   const { clienteSelecionado } = useCliente();
+
+  // Retorno do callback OAuth; o cliente volta via ?cliente= (restaurado pelo ClienteContext).
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const result = url.searchParams.get("oauth");
+    if (!result) return;
+
+    const provider = PROVIDER_LABELS[url.searchParams.get("provider") ?? ""] ?? "Integração";
+    if (result === "success") {
+      toast.success(`${provider} conectado com sucesso!`);
+    } else {
+      toast.error(url.searchParams.get("message") ?? `Erro ao conectar ${provider}.`);
+    }
+
+    ["oauth", "provider", "message"].forEach((p) => url.searchParams.delete(p));
+    window.history.replaceState(window.history.state, "", url.toString());
+  }, []);
 
   return (
     <div className="p-8 max-w-6xl mx-auto flex flex-col gap-8">
@@ -13,7 +39,7 @@ export default function IntegracoesPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-border/50">
         <div>
           <h1 className="text-4xl md:text-5xl font-bold tracking-tighter uppercase text-foreground">
-            Integrações <span className="text-primary">N8N</span>
+            Integrações <span className="text-primary">de Ferramentas</span>
           </h1>
           <p className="text-muted-foreground mt-2 max-w-xl text-sm font-medium">
             Gerencie as credenciais das plataformas de anúncios. Estas chaves são utilizadas pelo motor de automação (n8n) para sincronizar leads e campanhas.
@@ -114,6 +140,9 @@ export default function IntegracoesPage() {
               description="Conexão OAuth por cliente via GA4 Data API"
               icon={<BarChart3 className="w-24 h-24" />}
               accentColorClass="bg-yellow-500"
+              renderAccountPicker={({ selected, onSelected }) => (
+                <Ga4PropertyPicker contaId={clienteSelecionado.conta_id} selected={selected} onSelected={onSelected} />
+              )}
               authorizeUrl={(contaId) => `/api/oauth/google/authorize?provider=ga4&conta_id=${encodeURIComponent(contaId)}`}
             />
 

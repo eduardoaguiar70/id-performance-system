@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Loader2, Link2, AlertTriangle, Circle } from "lucide-react";
 
@@ -10,8 +9,6 @@ export type OauthProvider = "google_ads" | "ga4" | "shopify";
 type OauthStatus = "pendente" | "conectado" | "erro" | "revogado";
 
 interface IntegracaoOauthRow {
-  id: string;
-  conta_id: string;
   provider: OauthProvider;
   account_identifier: string | null;
   status: OauthStatus;
@@ -27,6 +24,7 @@ interface OauthProviderCardProps {
   accentColorClass: string; // ex: "bg-orange-500"
   authorizeUrl: (contaId: string, shop?: string) => string;
   requiresShopDomain?: boolean;
+  renderAccountPicker?: (args: { selected: string | null; onSelected: (id: string) => void }) => React.ReactNode;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +83,7 @@ export function OauthProviderCard({
   accentColorClass,
   authorizeUrl,
   requiresShopDomain,
+  renderAccountPicker,
 }: OauthProviderCardProps) {
   const [row, setRow] = useState<IntegracaoOauthRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -96,19 +95,17 @@ export function OauthProviderCard({
     setIsLoading(true);
     setConnecting(false);
 
-    supabase
-      .from("integracoes_oauth")
-      .select("id, conta_id, provider, account_identifier, status, ultimo_erro")
-      .eq("conta_id", contaId)
-      .eq("provider", provider)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    fetch(`/api/oauth/status?conta_id=${encodeURIComponent(contaId)}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((data: { integracoes: IntegracaoOauthRow[] }) => {
         if (cancelled) return;
-        if (error) {
-          console.error(`Erro ao buscar integração ${provider}:`, error);
-        }
-        setRow((data as IntegracaoOauthRow) ?? null);
-        setIsLoading(false);
+        setRow(data.integracoes.find((i) => i.provider === provider) ?? null);
+      })
+      .catch((err) => {
+        if (!cancelled) console.error(`Erro ao buscar integração ${provider}:`, err);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
       });
 
     return () => {
@@ -146,6 +143,11 @@ export function OauthProviderCard({
     try {
       const res = await fetch(authorizeUrl(contaId));
       const data = await res.json().catch(() => null);
+      if (res.ok && data?.url) {
+        // mantém "Conectando..." até o navegador sair da página
+        window.location.href = data.url;
+        return;
+      }
       if (res.status === 501) {
         toast.info(data?.message ?? "OAuth ainda não configurado");
       } else if (!res.ok) {
@@ -187,7 +189,12 @@ export function OauthProviderCard({
           </div>
         ) : (
           <>
-            {isConnected && row?.account_identifier && (
+            {isConnected && renderAccountPicker?.({
+              selected: row?.account_identifier ?? null,
+              onSelected: (id) => setRow((r) => (r ? { ...r, account_identifier: id } : r)),
+            })}
+
+            {isConnected && !renderAccountPicker && row?.account_identifier && (
               <div className="px-4 py-3 border border-green-500/20 bg-green-500/5">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
                   Conta conectada
