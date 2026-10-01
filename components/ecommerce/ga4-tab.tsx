@@ -14,16 +14,30 @@ import {
   Tooltip,
   LabelList,
 } from "recharts";
-import { AlertTriangle, ArrowDownRight, ArrowUpRight, Loader2, Minus, X } from "lucide-react";
+import { AlertTriangle, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PeriodoSelector, periodoPadrao, type Periodo } from "./periodo-selector";
 import { MultiSelect } from "./multi-select";
-
-// Paleta categórica (passos dark) validada contra a superfície do card #171717.
-const SERIE_1 = "#3987e5";
-const SERIE_2 = "#d95926";
-const GRID = "hsl(0 0% 16%)";
-const TEXTO_EIXO = "hsl(0 0% 55%)";
+import {
+  SERIE_1,
+  SERIE_2,
+  GRID,
+  TEXTO_EIXO,
+  div,
+  fmtBRL,
+  fmtInt,
+  fmtPct,
+  fmtX,
+  periodoAnterior,
+  KpiTile,
+  ChartCard,
+  LegendaItem,
+  TooltipConteudo,
+  eixoProps,
+  rotuloFinal,
+  TabelaPeriodo,
+  type ColunaTabela,
+} from "./shared";
 
 interface Linha {
   dimensao: string;
@@ -60,7 +74,6 @@ const FILTROS_VAZIOS: Filtros = { utm_source: [], utm_medium: [], utm_campaign: 
 // ---------------------------------------------------------------------------
 // Métricas derivadas (fórmulas da especificação da sub-aba GA4)
 // ---------------------------------------------------------------------------
-const div = (a: number, b: number) => (b > 0 ? a / b : null);
 
 function derivar(l: Omit<Linha, "dimensao">) {
   return {
@@ -73,136 +86,11 @@ function derivar(l: Omit<Linha, "dimensao">) {
   };
 }
 
-const fmtBRL = (v: number | null) =>
-  v === null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const fmtInt = (v: number | null) => (v === null ? "—" : Math.round(v).toLocaleString("pt-BR"));
-const fmtPct = (v: number | null) =>
-  v === null ? "—" : `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
-const fmtX = (v: number | null) =>
-  v === null ? "—" : `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`;
-
-// Mesmo número de dias, imediatamente antes do período atual.
-function periodoAnterior(inicio: string, fim: string) {
-  const ini = new Date(`${inicio}T00:00:00Z`);
-  const f = new Date(`${fim}T00:00:00Z`);
-  const dias = Math.round((f.getTime() - ini.getTime()) / 86_400_000) + 1;
-  const fimAnt = new Date(ini.getTime() - 86_400_000);
-  const iniAnt = new Date(fimAnt.getTime() - (dias - 1) * 86_400_000);
-  return { inicio: iniAnt.toISOString().slice(0, 10), fim: fimAnt.toISOString().slice(0, 10) };
-}
 
 function montarUrl(contaId: string, inicio: string, fim: string, granularidade: string, filtros: Filtros) {
   const p = new URLSearchParams({ conta_id: contaId, inicio, fim, granularidade });
   FILTROS.forEach(({ key }) => filtros[key].length && p.set(key, filtros[key].join(",")));
   return `/api/ga4/report?${p.toString()}`;
-}
-
-// ---------------------------------------------------------------------------
-// Peças visuais
-// ---------------------------------------------------------------------------
-function KpiTile({
-  label,
-  valor,
-  atual,
-  anterior,
-  menorMelhor,
-}: {
-  label: string;
-  valor: string;
-  atual: number | null;
-  anterior: number | null;
-  menorMelhor?: boolean;
-}) {
-  let variacao: number | null = null;
-  if (atual !== null && anterior !== null && anterior !== 0) variacao = ((atual - anterior) / anterior) * 100;
-  const bom = variacao !== null && variacao !== 0 && (menorMelhor ? variacao < 0 : variacao > 0);
-  const Icone = variacao === null || variacao === 0 ? Minus : variacao > 0 ? ArrowUpRight : ArrowDownRight;
-
-  return (
-    <div className="border border-border/50 bg-card p-4 flex flex-col gap-2 min-w-0">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground truncate">{label}</p>
-      <p className="text-xl font-bold tracking-tight text-foreground truncate">{valor}</p>
-      <p
-        className={cn(
-          "text-[11px] font-medium flex items-center gap-1",
-          variacao === null || variacao === 0 ? "text-muted-foreground" : bom ? "text-green-400" : "text-red-400"
-        )}
-      >
-        <Icone className="w-3 h-3" />
-        {variacao === null ? "sem base anterior" : `${variacao > 0 ? "+" : ""}${variacao.toFixed(1)}% vs anterior`}
-      </p>
-    </div>
-  );
-}
-
-function ChartCard({ titulo, legenda, children }: { titulo: string; legenda?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="border border-border/50 bg-card p-5 flex flex-col gap-4 min-w-0">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{titulo}</h3>
-        {legenda}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function LegendaItem({ cor, label }: { cor: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-      <span className="w-3 h-0.5 rounded-full" style={{ background: cor }} />
-      {label}
-    </span>
-  );
-}
-
-interface TooltipLinha {
-  name?: string;
-  value?: number;
-  color?: string;
-}
-
-function TooltipConteudo({
-  active,
-  payload,
-  label,
-  formato,
-}: {
-  active?: boolean;
-  payload?: TooltipLinha[];
-  label?: string;
-  formato: (v: number) => string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="border border-border bg-background px-3 py-2 text-xs shadow-lg">
-      <p className="font-semibold text-foreground mb-1">{label}</p>
-      {payload.map((p) => (
-        <p key={p.name} className="flex items-center gap-2 text-muted-foreground">
-          <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          {p.name}: <span className="text-foreground font-medium">{formato(Number(p.value ?? 0))}</span>
-        </p>
-      ))}
-    </div>
-  );
-}
-
-const eixoProps = {
-  tick: { fill: TEXTO_EIXO, fontSize: 11 },
-  axisLine: false,
-  tickLine: false,
-} as const;
-
-// Rótulo direto só no último ponto da série.
-function rotuloFinal(total: number, cor: string, formato: (v: number) => string) {
-  return function RotuloFinal(props: { x?: unknown; y?: unknown; value?: unknown; index?: number }) {
-    if (props.index !== total - 1) return null;
-    return (
-      <text x={Number(props.x) + 6} y={Number(props.y) + 4} fontSize={11} fill={cor} fontWeight={600}>
-        {formato(Number(props.value ?? 0))}
-      </text>
-    );
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -470,7 +358,7 @@ export function Ga4Tab({ contaId }: { contaId: string }) {
 }
 
 function TabelaGa4({ linhas, totais }: { linhas: Linha[]; totais: Omit<Linha, "dimensao"> }) {
-  const colunas: { label: string; valor: (l: Omit<Linha, "dimensao">) => string }[] = [
+  const colunas: ColunaTabela<Omit<Linha, "dimensao">>[] = [
     { label: "Investimento", valor: (l) => fmtBRL(l.investimento) },
     { label: "Sessões", valor: (l) => fmtInt(l.sessoes) },
     { label: "Compras", valor: (l) => fmtInt(l.compras) },
@@ -483,59 +371,5 @@ function TabelaGa4({ linhas, totais }: { linhas: Linha[]; totais: Omit<Linha, "d
     { label: "ROAS Analytics", valor: (l) => fmtX(derivar(l).roas) },
   ];
 
-  return (
-    <div className="border border-border/50 bg-card">
-      <div className="px-5 py-4 border-b border-border/50">
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tabela por período</h3>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border/50">
-              <th className="text-left px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground whitespace-nowrap sticky left-0 bg-card">
-                Dimensão
-              </th>
-              {colunas.map((c) => (
-                <th key={c.label} className="text-right px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground whitespace-nowrap">
-                  {c.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {linhas.length === 0 ? (
-              <tr>
-                <td colSpan={colunas.length + 1} className="px-4 py-8 text-center text-muted-foreground">
-                  Sem dados no período.
-                </td>
-              </tr>
-            ) : (
-              linhas.map((l) => (
-                <tr key={l.dimensao} className="border-b border-border/30 hover:bg-muted/20">
-                  <td className="px-4 py-2.5 font-medium whitespace-nowrap sticky left-0 bg-card">{l.dimensao}</td>
-                  {colunas.map((c) => (
-                    <td key={c.label} className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap text-foreground/80">
-                      {c.valor(l)}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-          {linhas.length > 0 && (
-            <tfoot>
-              <tr className="border-t border-border font-semibold">
-                <td className="px-4 py-3 whitespace-nowrap sticky left-0 bg-card">Total</td>
-                {colunas.map((c) => (
-                  <td key={c.label} className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
-                    {c.valor(totais)}
-                  </td>
-                ))}
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
-    </div>
-  );
+  return <TabelaPeriodo linhas={linhas} totais={totais} colunas={colunas} />;
 }

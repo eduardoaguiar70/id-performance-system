@@ -12,7 +12,6 @@ interface GoogleTokenResponse {
   expires_in: number;
   refresh_token?: string;
   scope: string;
-  id_token?: string;
   error?: string;
   error_description?: string;
 }
@@ -23,17 +22,6 @@ function redirectToPage(req: NextRequest, params: Record<string, string>) {
   const res = NextResponse.redirect(url);
   res.cookies.set(STATE_COOKIE, "", { path: "/api/oauth/google", maxAge: 0 });
   return res;
-}
-
-// id_token veio direto do endpoint de token do Google via TLS, então só decodificamos.
-function emailFromIdToken(idToken?: string): string | null {
-  if (!idToken) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(idToken.split(".")[1], "base64url").toString());
-    return typeof payload.email === "string" ? payload.email : null;
-  } catch {
-    return null;
-  }
 }
 
 export async function GET(req: NextRequest) {
@@ -99,8 +87,6 @@ export async function GET(req: NextRequest) {
     {
       conta_id,
       provider,
-      // GA4 guarda aqui a propriedade escolhida; reconectar não pode apagá-la.
-      ...(provider === "ga4" ? {} : { account_identifier: emailFromIdToken(tokens.id_token) }),
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
       expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),

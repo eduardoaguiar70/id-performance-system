@@ -5,6 +5,8 @@ import { Building2, Construction, Loader2 } from "lucide-react";
 import { useCliente } from "@/context/ClienteContext";
 import { cn } from "@/lib/utils";
 import { Ga4Tab } from "@/components/ecommerce/ga4-tab";
+import { GoogleAdsTab } from "@/components/ecommerce/google-ads-tab";
+import { MetaAdsTab } from "@/components/ecommerce/meta-ads-tab";
 
 const ABAS = [
   { id: "visao_geral", label: "Visão Geral" },
@@ -110,6 +112,10 @@ export default function EcommercePage() {
 
           {subAba === "ga4" ? (
             <Ga4Tab key={clienteSelecionado.conta_id} contaId={clienteSelecionado.conta_id} />
+          ) : subAba === "meta" ? (
+            <MetaAdsTab key={clienteSelecionado.conta_id} contaId={clienteSelecionado.conta_id} />
+          ) : subAba === "google" ? (
+            <GoogleAdsTab key={clienteSelecionado.conta_id} contaId={clienteSelecionado.conta_id} />
           ) : (
             <EmConstrucao nome={nomeSubAba} />
           )}

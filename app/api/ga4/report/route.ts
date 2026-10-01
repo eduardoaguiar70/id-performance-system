@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleAuthError, getValidAccessToken } from "@/lib/oauth/google";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { buscarRelatorioGa4, type Ga4Filtros, type Granularidade } from "@/lib/ga4/report";
+import { buscarRelatorioGa4, type Ga4Filtros } from "@/lib/ga4/report";
+import { GRANULARIDADES, type Granularidade } from "@/lib/periodo";
+import { buscarDiasMeta } from "@/lib/meta/snapshots";
 
-const GRANULARIDADES: Granularidade[] = ["dia", "semana", "mes", "ano"];
 const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 // GET /api/ga4/report?conta_id=...&inicio=2026-09-01&fim=2026-09-30&granularidade=dia
@@ -49,21 +50,11 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Investimento: hoje só Meta (kpi_snapshots, 1 linha por dia). Google Ads entra quando houver snapshots diários.
-  const { data: gastosMeta } = await getSupabaseAdmin()
-    .from("kpi_snapshots")
-    .select("periodo_inicio, investimento_total")
-    .eq("conta_id", contaId)
-    .gte("periodo_inicio", inicio)
-    .lte("periodo_inicio", fim);
-
-  const investimentoPorDia = new Map<string, number>();
-  for (const g of gastosMeta ?? []) {
-    const dia = String(g.periodo_inicio).slice(0, 10);
-    investimentoPorDia.set(dia, (investimentoPorDia.get(dia) ?? 0) + (Number(g.investimento_total) || 0));
-  }
-
   try {
+    // Investimento: hoje só Meta. Google Ads entra quando o token tiver acesso de produção.
+    const investimentoPorDia = new Map(
+      (await buscarDiasMeta(contaId, inicio, fim)).map((d) => [d.dia, d.investimento])
+    );
     const token = await getValidAccessToken(contaId, "ga4");
     const relatorio = await buscarRelatorioGa4(token, propertyId, inicio, fim, granularidade, filtros, investimentoPorDia);
     return NextResponse.json(relatorio);

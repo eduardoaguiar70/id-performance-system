@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Server, Search, BarChart3, ShoppingBag, Building2 } from "lucide-react";
 import { useCliente } from "@/context/ClienteContext";
 import { OauthProviderCard } from "@/components/integracoes/oauth-provider-card";
-import { Ga4PropertyPicker } from "@/components/integracoes/ga4-property-picker";
+import { AccountPicker, ga4Adapter, googleAdsAdapter } from "@/components/integracoes/account-picker";
 
 const PROVIDER_LABELS: Record<string, string> = {
   google_ads: "Google Ads",
@@ -130,6 +130,16 @@ export default function IntegracoesPage() {
               description="Conexão OAuth por cliente via Google Ads API"
               icon={<Search className="w-24 h-24" />}
               accentColorClass="bg-orange-500"
+              renderAccountPicker={({ selected, onSelected }) => (
+                <AccountPicker
+                  contaId={clienteSelecionado.conta_id}
+                  label="Conta de anúncios"
+                  vazio="Este login não tem acesso a nenhuma conta do Google Ads."
+                  selected={selected}
+                  onSelected={onSelected}
+                  {...googleAdsAdapter}
+                />
+              )}
               authorizeUrl={(contaId) => `/api/oauth/google/authorize?provider=google_ads&conta_id=${encodeURIComponent(contaId)}`}
             />
 
@@ -141,7 +151,14 @@ export default function IntegracoesPage() {
               icon={<BarChart3 className="w-24 h-24" />}
               accentColorClass="bg-yellow-500"
               renderAccountPicker={({ selected, onSelected }) => (
-                <Ga4PropertyPicker contaId={clienteSelecionado.conta_id} selected={selected} onSelected={onSelected} />
+                <AccountPicker
+                  contaId={clienteSelecionado.conta_id}
+                  label="Propriedade GA4"
+                  vazio="Este login não tem acesso a nenhuma propriedade GA4."
+                  selected={selected}
+                  onSelected={onSelected}
+                  {...ga4Adapter}
+                />
               )}
               authorizeUrl={(contaId) => `/api/oauth/google/authorize?provider=ga4&conta_id=${encodeURIComponent(contaId)}`}
             />
