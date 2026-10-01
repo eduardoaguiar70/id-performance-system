@@ -20,6 +20,7 @@ import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCliente } from "@/context/ClienteContext"
 import { ClienteBanner } from "@/components/cliente-banner"
+import { ultimaCapturaPorDia } from "@/lib/meta/dedupe"
 
 // --- Formatters ---
 const fmtBRL = (v: any) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0)
@@ -27,8 +28,9 @@ const fmtInt = (v: any) => new Intl.NumberFormat('pt-BR').format(Number(v) || 0)
 const fmtFreq = (v: any) => `${(Number(v) || 0).toFixed(2)}x`
 
 // --- Aggregates multiple daily rows into one synthetic snapshot ---
-function aggregateHybridRows(rowsMeta: any[], rowsGoogle: any[]): any | null {
-  if ((!rowsMeta || rowsMeta.length === 0) && (!rowsGoogle || rowsGoogle.length === 0)) return null;
+function aggregateHybridRows(capturasMeta: any[], rowsGoogle: any[]): any | null {
+  const rowsMeta = ultimaCapturaPorDia(capturasMeta || []);
+  if (rowsMeta.length === 0 && (!rowsGoogle || rowsGoogle.length === 0)) return null;
 
   const sum = (arr: any[], key: string) => arr.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
   const avg = (arr: any[], key: string) => arr.length > 0 ? sum(arr, key) / arr.length : 0;
@@ -254,10 +256,12 @@ export default function KPIsPage() {
 
       const [metaRes, googleRes] = await Promise.all(fetchPromises);
       if (metaRes.error) throw metaRes.error;
-      if (googleRes.error) throw googleRes.error;
+      const rowsGoogle = googleRes.error ? [] : googleRes.data || [];
+      if (googleRes.error) console.warn("Google Ads indisponível nos KPIs:", googleRes.error.message);
 
-      const totalRows = (metaRes.data?.length || 0) + (googleRes.data?.length || 0);
-      setSnapshot(aggregateHybridRows(metaRes.data || [], googleRes.data || []));
+      const rowsMeta = ultimaCapturaPorDia(metaRes.data || []);
+      const totalRows = rowsMeta.length + rowsGoogle.length;
+      setSnapshot(aggregateHybridRows(rowsMeta, rowsGoogle));
       setDateFilterActive(true)
       toast.success(`Período agregado: ${totalRows} resumos diários.`, { id: toastId })
     } catch {
@@ -340,9 +344,10 @@ export default function KPIsPage() {
 
         const [metaRes, googleRes] = await Promise.all(fetchPromises);
         if (metaRes.error) throw metaRes.error;
-        if (googleRes.error) throw googleRes.error;
+        // google_ads_snapshots não tem periodo_inicio hoje; a falha do Google não pode esconder o Meta.
+        if (googleRes.error) console.warn("Google Ads indisponível nos KPIs:", googleRes.error.message);
 
-        const aggregated = aggregateHybridRows(metaRes.data || [], googleRes.data || []);
+        const aggregated = aggregateHybridRows(metaRes.data || [], googleRes.error ? [] : googleRes.data || []);
         setSnapshot(aggregated);
 
         const aiData = await fetchLatestKpiAnalysis(clienteSelecionado!.conta_nome)

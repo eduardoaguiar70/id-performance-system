@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { ultimaCapturaPorDia } from '@/lib/meta/dedupe'
 
 export { supabase }
 
@@ -16,17 +17,21 @@ export function useSupabase() {
   }
 
   const fetchKpiHistory = async (conta_nome?: string, limit: number = 8) => {
+    // Busca a mais para compensar as recapturas do mesmo dia, que são descartadas abaixo.
     let query = supabase
       .from('kpi_snapshots')
-      .select('periodo_fim, roas, taxa_conversao, investimento_total, receita_atribuida')
+      .select('conta_id, conta_nome, periodo_inicio, periodo_fim, criado_em, roas, taxa_conversao, investimento_total, receita_atribuida')
       .order('periodo_inicio', { ascending: false })
-      .limit(limit)
+      .limit(limit * 10)
 
     if (conta_nome) query = query.eq('conta_nome', conta_nome)
 
     const { data, error } = await query
     if (error) throw error
-    return data.reverse()
+    return ultimaCapturaPorDia(data)
+      .sort((a, b) => String(b.periodo_inicio).localeCompare(String(a.periodo_inicio)))
+      .slice(0, limit)
+      .reverse()
   }
 
   const fetchMeetings = async () => {
