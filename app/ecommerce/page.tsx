@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Ga4Tab } from "@/components/ecommerce/ga4-tab";
 import { GoogleAdsTab } from "@/components/ecommerce/google-ads-tab";
 import { MetaAdsTab } from "@/components/ecommerce/meta-ads-tab";
+import { VisaoGeralTab } from "@/components/ecommerce/visao-geral-tab";
 
 const ABAS = [
   { id: "visao_geral", label: "Visão Geral" },
@@ -40,7 +41,7 @@ function EmConstrucao({ nome }: { nome: string }) {
 
 export default function EcommercePage() {
   const { clienteSelecionado, restaurandoCliente } = useCliente();
-  const [aba, setAba] = useState<Aba>("trafego");
+  const [aba, setAba] = useState<Aba>("visao_geral");
   const [subAba, setSubAba] = useState<SubAba>("ga4");
 
   const nomeAba = ABAS.find((a) => a.id === aba)!.label;
@@ -85,6 +86,8 @@ export default function EcommercePage() {
           <p className="text-lg font-medium">Nenhum cliente selecionado</p>
           <p className="text-sm mt-1">Use o seletor no topo para escolher um cliente</p>
         </div>
+      ) : aba === "visao_geral" ? (
+        <VisaoGeralTab key={clienteSelecionado.conta_id} contaId={clienteSelecionado.conta_id} />
       ) : aba !== "trafego" ? (
         <EmConstrucao nome={nomeAba} />
       ) : (

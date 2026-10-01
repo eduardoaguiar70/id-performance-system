@@ -99,7 +99,10 @@ export function OauthProviderCard({
       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
       .then((data: { integracoes: IntegracaoOauthRow[] }) => {
         if (cancelled) return;
-        setRow(data.integracoes.find((i) => i.provider === provider) ?? null);
+        const encontrada = data.integracoes.find((i) => i.provider === provider) ?? null;
+        setRow(encontrada);
+        // Shopify guarda o domínio da loja; pré-preenche para reconectar.
+        if (requiresShopDomain) setShopDomain(encontrada?.account_identifier ?? "");
       })
       .catch((err) => {
         if (!cancelled) console.error(`Erro ao buscar integração ${provider}:`, err);
@@ -111,37 +114,21 @@ export function OauthProviderCard({
     return () => {
       cancelled = true;
     };
-  }, [contaId, provider]);
+  }, [contaId, provider, requiresShopDomain]);
 
   const handleConnect = async () => {
+    let shop: string | undefined;
     if (requiresShopDomain) {
-      const trimmed = shopDomain.trim().toLowerCase();
-      const shopifyDomainPattern = /^[a-z0-9-]+\.myshopify\.com$/;
-      if (!shopifyDomainPattern.test(trimmed)) {
+      shop = shopDomain.trim().toLowerCase();
+      if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) {
         toast.error("Informe um domínio válido, ex: minhaloja.myshopify.com");
         return;
       }
-      setConnecting(true);
-      try {
-        const res = await fetch(authorizeUrl(contaId, trimmed));
-        const data = await res.json().catch(() => null);
-        if (res.status === 501) {
-          toast.info(data?.message ?? "OAuth ainda não configurado");
-        } else if (!res.ok) {
-          toast.error(data?.message ?? "Não foi possível iniciar a conexão.");
-        }
-      } catch (err) {
-        console.error(err);
-        toast.error("Não foi possível iniciar a conexão.");
-      } finally {
-        setConnecting(false);
-      }
-      return;
     }
 
     setConnecting(true);
     try {
-      const res = await fetch(authorizeUrl(contaId));
+      const res = await fetch(authorizeUrl(contaId, shop));
       const data = await res.json().catch(() => null);
       if (res.ok && data?.url) {
         // mantém "Conectando..." até o navegador sair da página

@@ -26,6 +26,7 @@ import {
   periodoAnterior,
   KpiTile,
   ChartCard,
+  Funil,
   eixoProps,
   TabelaPeriodo,
   type ColunaTabela,
@@ -79,37 +80,6 @@ function TooltipDispersao({ active, payload }: { active?: boolean; payload?: { p
       <p className="text-muted-foreground">
         ROAS: <span className="text-foreground font-medium">{fmtX(p.roas)}</span>
       </p>
-    </div>
-  );
-}
-
-function Funil({ etapas }: { etapas: { label: string; valor: number }[] }) {
-  const topo = etapas[0]?.valor || 0;
-  return (
-    <div className="flex flex-col gap-1">
-      {etapas.map((e, i) => {
-        const anterior = i > 0 ? etapas[i - 1].valor : null;
-        const passagem = anterior ? (e.valor / anterior) * 100 : null;
-        return (
-          <div key={e.label}>
-            {passagem !== null && (
-              <p className="text-[11px] text-muted-foreground pl-1 py-1">
-                ↓ {anterior === 0 ? "—" : `${passagem.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% passam para a próxima etapa`}
-              </p>
-            )}
-            <div className="flex items-center gap-3">
-              <span className="w-40 text-xs text-muted-foreground flex-shrink-0">{e.label}</span>
-              <div className="flex-1 h-6 bg-muted/20 relative">
-                <div
-                  className="h-full rounded-r"
-                  style={{ width: topo > 0 ? `max(2px, ${(e.valor / topo) * 100}%)` : "0", background: SERIE_1 }}
-                />
-              </div>
-              <span className="w-24 text-right text-sm font-semibold tabular-nums">{fmtInt(e.valor)}</span>
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
