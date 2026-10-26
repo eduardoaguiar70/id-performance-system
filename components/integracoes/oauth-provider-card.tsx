@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Link2, AlertTriangle, Circle } from "lucide-react";
+import { Loader2, Link2, Unlink, AlertTriangle, Circle } from "lucide-react";
 
 export type OauthProvider = "google_ads" | "ga4" | "shopify";
 
@@ -88,6 +88,7 @@ export function OauthProviderCard({
   const [row, setRow] = useState<IntegracaoOauthRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [shopDomain, setShopDomain] = useState("");
 
   useEffect(() => {
@@ -148,8 +149,35 @@ export function OauthProviderCard({
     }
   };
 
+  const handleDisconnect = async () => {
+    if (!window.confirm(`Desconectar ${label} deste cliente? Os dados deixam de ser atualizados até reconectar.`)) return;
+
+    setDisconnecting(true);
+    try {
+      const res = await fetch(
+        `/api/oauth/disconnect?conta_id=${encodeURIComponent(contaId)}&provider=${provider}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(data?.message ?? "Não foi possível desconectar.");
+        return;
+      }
+      setRow(null);
+      if (requiresShopDomain) setShopDomain("");
+      toast.success(`${label} desconectado.`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível desconectar.");
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
   const status: OauthStatus | "nao_conectado" = row?.status ?? "nao_conectado";
   const isConnected = status === "conectado";
+  // Também permite desconectar um vínculo com erro, para recomeçar do zero.
+  const canDisconnect = !!row;
 
   return (
     <div className="relative group flex flex-col border border-border/50 bg-card p-8 transition-colors hover:border-primary/50">
@@ -218,7 +246,7 @@ export function OauthProviderCard({
 
             <button
               onClick={handleConnect}
-              disabled={connecting}
+              disabled={connecting || disconnecting}
               className="mt-auto group/btn relative flex items-center justify-center gap-2 border border-border px-6 py-3 font-bold uppercase tracking-widest text-sm transition-all hover:border-primary hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {connecting ? (
@@ -228,6 +256,21 @@ export function OauthProviderCard({
               )}
               {isConnected ? "Reconectar" : "Conectar"}
             </button>
+
+            {canDisconnect && (
+              <button
+                onClick={handleDisconnect}
+                disabled={connecting || disconnecting}
+                className="flex items-center justify-center gap-2 border border-red-500/30 px-6 py-3 font-bold uppercase tracking-widest text-sm text-red-400 transition-all hover:border-red-500 hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {disconnecting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Unlink className="w-4 h-4" />
+                )}
+                Desconectar
+              </button>
+            )}
           </>
         )}
       </div>

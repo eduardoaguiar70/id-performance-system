@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const config = getShopifyConfig();
   if (!config) {
     return NextResponse.json(
-      { status: "not_configured", message: "Credenciais do app Shopify ausentes no .env.local" },
+      { status: "not_configured", message: "Credenciais do app Shopify não configuradas no servidor (variáveis de ambiente SHOPIFY_*)." },
       { status: 501 }
     );
   }

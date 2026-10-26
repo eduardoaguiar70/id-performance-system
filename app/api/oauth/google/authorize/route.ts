@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const config = getGoogleConfig();
   if (!config) {
     return NextResponse.json(
-      { status: "not_configured", message: "Credenciais do Google OAuth ausentes no .env.local" },
+      { status: "not_configured", message: "Credenciais do Google OAuth não configuradas no servidor (variáveis de ambiente GOOGLE_OAUTH_*)." },
       { status: 501 }
     );
   }
