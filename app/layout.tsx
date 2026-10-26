@@ -28,7 +28,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const pathname = headers().get("x-pathname") ?? "";
-  const isAuthPage = pathname === "/login";
+  // Sem barra lateral nem cabeçalho: login e páginas legais públicas.
+  const isAuthPage = ["/login", "/privacidade", "/termos"].includes(pathname);
 
   if (isAuthPage) {
     return (

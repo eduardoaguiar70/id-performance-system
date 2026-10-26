@@ -5,12 +5,14 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const authToken = request.cookies.get("sb-auth-token")?.value
   const isLoginPage = pathname === "/login"
+  // Páginas legais precisam abrir sem login (exigência da verificação do Google).
+  const isPublicPage = isLoginPage || pathname === "/privacidade" || pathname === "/termos"
 
   // Forward the pathname so the root layout can decide whether to render the sidebar
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set("x-pathname", pathname)
 
-  if (!authToken && !isLoginPage) {
+  if (!authToken && !isPublicPage) {
     const url = new URL("/login", request.url)
     // Preserve the intended destination for post-login redirect
     url.searchParams.set("next", pathname)
